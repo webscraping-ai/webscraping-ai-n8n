@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-webscraping-ai",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "n8n node to call WebScraping.AI API services - LLM-powered web scraping with JavaScript rendering and proxies.",
 	"keywords": [
 		"n8n-community-node-package",

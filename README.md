@@ -1,8 +1,11 @@
 # n8n-nodes-webscraping-ai
 
+[![npm](https://img.shields.io/npm/v/n8n-nodes-webscraping-ai.svg)](https://www.npmjs.com/package/n8n-nodes-webscraping-ai)
+[![CI](https://github.com/webscraping-ai/webscraping-ai-n8n/actions/workflows/ci.yml/badge.svg)](https://github.com/webscraping-ai/webscraping-ai-n8n/actions/workflows/ci.yml)
+
 This is an n8n community node that integrates [WebScraping.AI](https://webscraping.ai) into your n8n workflows.
 
-WebScraping.AI provides AI-powered web scraping with JavaScript rendering, rotating proxies, and built-in HTML parsing. This node allows you to leverage these capabilities directly in your n8n automations.
+WebScraping.AI provides AI-powered web scraping with Chromium JavaScript rendering, rotating datacenter/residential/stealth proxies, and built-in HTML parsing — plus LLM-powered question answering and structured field extraction on any page. This node allows you to leverage these capabilities directly in your n8n automations.
 
 ## Features
 
@@ -33,7 +36,7 @@ npm install n8n-nodes-webscraping-ai
 
 ## Prerequisites
 
-You need to have an account with [WebScraping.AI](https://webscraping.ai) and obtain an API key from your [dashboard](https://webscraping.ai/dashboard).
+You need to have an account with [WebScraping.AI](https://webscraping.ai) and obtain an API key from your [dashboard](https://webscraping.ai/dashboard). [Sign up](https://webscraping.ai/auth/sign_up) to get started — the free trial includes 2,000 credits, no credit card required.
 
 ## Credentials
 
@@ -167,9 +170,11 @@ Enable "Continue on Fail" in the node settings to handle errors gracefully in yo
 
 ## Resources
 
+- [WebScraping.AI](https://webscraping.ai) — features, pricing, signup
 - [WebScraping.AI Documentation](https://webscraping.ai/docs)
 - [API Reference](https://webscraping.ai/api)
 - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
+- Other official clients: [Python](https://github.com/webscraping-ai/webscraping-ai-python) · [JavaScript](https://github.com/webscraping-ai/webscraping-ai-js) · [Ruby](https://github.com/webscraping-ai/webscraping-ai-ruby) · [PHP](https://github.com/webscraping-ai/webscraping-ai-php) · [Go](https://github.com/webscraping-ai/webscraping-ai-go) · [Java](https://github.com/webscraping-ai/webscraping-ai-java) · [.NET](https://github.com/webscraping-ai/webscraping-ai-dotnet) · [CLI](https://github.com/webscraping-ai/webscraping-ai-cli) · [MCP server](https://github.com/webscraping-ai/webscraping-ai-mcp-server)
 
 ## License
 
