@@ -1,4 +1,15 @@
+import { INode } from 'n8n-workflow';
+
 import { buildRequest, GetParam } from '../buildRequest';
+
+const fakeNode = {
+	id: 'test',
+	name: 'WebScraping.AI',
+	type: 'webScrapingAi',
+	typeVersion: 1,
+	position: [0, 0],
+	parameters: {},
+} as INode;
 
 /**
  * Helper: build a `getParam` shim from a plain bag of inputs that mirrors how
@@ -29,13 +40,13 @@ describe('buildRequest', () => {
 				fields: '{"x":"y"}',
 				selectors: '["h1"]',
 			};
-			const req = buildRequest(operation, getParamFrom(inputs));
+			const req = buildRequest(fakeNode, operation, getParamFrom(inputs));
 			expect(req.url).toBe(`https://api.webscraping.ai${endpoint}`);
 			expect(req.method).toBe('GET');
 		});
 
 		test('unknown operation throws', () => {
-			expect(() => buildRequest('bogus', getParamFrom({}))).toThrow(/Unknown operation/);
+			expect(() => buildRequest(fakeNode, 'bogus', getParamFrom({}))).toThrow(/Unknown operation/);
 		});
 	});
 
@@ -55,14 +66,14 @@ describe('buildRequest', () => {
 				fields: '{"x":"y"}',
 				selectors: '["h1"]',
 			};
-			const req = buildRequest(operation, getParamFrom(inputs));
+			const req = buildRequest(fakeNode, operation, getParamFrom(inputs));
 			expect((req.qs as Record<string, unknown>).from_n8n).toBe(true);
 		});
 	});
 
 	describe('aiQuestion', () => {
 		test('builds expected query', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'aiQuestion',
 				getParamFrom({
 					url: 'https://example.com',
@@ -79,7 +90,7 @@ describe('buildRequest', () => {
 		});
 
 		test('omits format when explicitly empty', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'aiQuestion',
 				getParamFrom({
 					url: 'https://example.com',
@@ -93,7 +104,7 @@ describe('buildRequest', () => {
 
 	describe('aiFields', () => {
 		test('parses fields JSON object', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'aiFields',
 				getParamFrom({
 					url: 'https://example.com',
@@ -109,7 +120,7 @@ describe('buildRequest', () => {
 
 		test('throws on invalid fields JSON', () => {
 			expect(() =>
-				buildRequest(
+				buildRequest(fakeNode, 
 					'aiFields',
 					getParamFrom({
 						url: 'https://example.com',
@@ -122,7 +133,7 @@ describe('buildRequest', () => {
 
 	describe('selectedMultiple', () => {
 		test('parses selectors as array', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'selectedMultiple',
 				getParamFrom({
 					url: 'https://example.com',
@@ -134,7 +145,7 @@ describe('buildRequest', () => {
 
 		test('throws when selectors JSON is not an array', () => {
 			expect(() =>
-				buildRequest(
+				buildRequest(fakeNode, 
 					'selectedMultiple',
 					getParamFrom({
 						url: 'https://example.com',
@@ -146,7 +157,7 @@ describe('buildRequest', () => {
 
 		test('throws on invalid selectors JSON', () => {
 			expect(() =>
-				buildRequest(
+				buildRequest(fakeNode, 
 					'selectedMultiple',
 					getParamFrom({
 						url: 'https://example.com',
@@ -159,7 +170,7 @@ describe('buildRequest', () => {
 
 	describe('selected', () => {
 		test('omits selector when empty', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'selected',
 				getParamFrom({
 					url: 'https://example.com',
@@ -170,7 +181,7 @@ describe('buildRequest', () => {
 		});
 
 		test('sends selector when provided', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'selected',
 				getParamFrom({
 					url: 'https://example.com',
@@ -183,7 +194,7 @@ describe('buildRequest', () => {
 
 	describe('text', () => {
 		test('default text_format is plain', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'text',
 				getParamFrom({
 					url: 'https://example.com',
@@ -193,7 +204,7 @@ describe('buildRequest', () => {
 		});
 
 		test('return_links suppressed when false', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'text',
 				getParamFrom({
 					url: 'https://example.com',
@@ -204,7 +215,7 @@ describe('buildRequest', () => {
 		});
 
 		test('return_links included when true', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'text',
 				getParamFrom({
 					url: 'https://example.com',
@@ -217,7 +228,7 @@ describe('buildRequest', () => {
 
 	describe('html', () => {
 		test('return_script_result suppressed when false', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'html',
 				getParamFrom({
 					url: 'https://example.com',
@@ -230,7 +241,7 @@ describe('buildRequest', () => {
 
 	describe('additionalOptions merging', () => {
 		test('merges scalar options', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'html',
 				getParamFrom({
 					url: 'https://example.com',
@@ -253,7 +264,7 @@ describe('buildRequest', () => {
 		});
 
 		test('parses headers JSON string', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'html',
 				getParamFrom({
 					url: 'https://example.com',
@@ -267,7 +278,7 @@ describe('buildRequest', () => {
 
 		test('throws on invalid headers JSON', () => {
 			expect(() =>
-				buildRequest(
+				buildRequest(fakeNode, 
 					'html',
 					getParamFrom({
 						url: 'https://example.com',
@@ -278,7 +289,7 @@ describe('buildRequest', () => {
 		});
 
 		test('drops empty / null / undefined values', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'html',
 				getParamFrom({
 					url: 'https://example.com',
@@ -297,7 +308,7 @@ describe('buildRequest', () => {
 		});
 
 		test('account operation ignores additionalOptions', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'account',
 				getParamFrom({
 					additionalOptions: { js: true, country: 'gb' },
@@ -331,7 +342,7 @@ describe('buildRequest', () => {
 		const DEVICES = ['desktop', 'mobile', 'tablet'];
 
 		test.each(PROXY_TYPES)('proxy=%s passes through', (proxy) => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'html',
 				getParamFrom({
 					url: 'https://example.com',
@@ -342,7 +353,7 @@ describe('buildRequest', () => {
 		});
 
 		test.each(COUNTRIES)('country=%s passes through', (country) => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'html',
 				getParamFrom({
 					url: 'https://example.com',
@@ -353,7 +364,7 @@ describe('buildRequest', () => {
 		});
 
 		test.each(DEVICES)('device=%s passes through', (device) => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'html',
 				getParamFrom({
 					url: 'https://example.com',
@@ -366,7 +377,7 @@ describe('buildRequest', () => {
 
 	describe('request envelope', () => {
 		test('returnFullResponse is true and json is false', () => {
-			const req = buildRequest(
+			const req = buildRequest(fakeNode, 
 				'account',
 				getParamFrom({}),
 			);

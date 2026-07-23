@@ -1,4 +1,4 @@
-import { IDataObject, IHttpRequestOptions } from 'n8n-workflow';
+import { IDataObject, IHttpRequestOptions, INode, NodeOperationError } from 'n8n-workflow';
 
 const BASE_URL = 'https://api.webscraping.ai';
 
@@ -30,13 +30,16 @@ const OPERATION_ENDPOINT: Record<string, string> = {
  * handed straight to `httpRequestWithAuthentication` — the credential
  * injects `api_key` via generic auth.
  *
- * Throws plain Error on bad user input; the caller wraps in
- * NodeOperationError so the node can keep the helper free of n8n deps.
+ * Throws NodeOperationError on bad user input.
  */
-export function buildRequest(operation: string, getParam: GetParam): IHttpRequestOptions {
+export function buildRequest(
+	node: INode,
+	operation: string,
+	getParam: GetParam,
+): IHttpRequestOptions {
 	const endpoint = OPERATION_ENDPOINT[operation];
 	if (!endpoint) {
-		throw new Error(`Unknown operation: ${operation}`);
+		throw new NodeOperationError(node, `Unknown operation: ${operation}`);
 	}
 
 	const queryParams: QueryParams = {};
@@ -48,7 +51,7 @@ export function buildRequest(operation: string, getParam: GetParam): IHttpReques
 		if (format) queryParams.format = format;
 	} else if (operation === 'aiFields') {
 		queryParams.url = getParam('url') as string;
-		queryParams.fields = parseJsonParam(getParam('fields') as string, 'Fields') as IDataObject;
+		queryParams.fields = parseJsonParam(node, getParam('fields') as string, 'Fields') as IDataObject;
 	} else if (operation === 'html') {
 		queryParams.url = getParam('url') as string;
 		const format = getParam('format', 'json') as string;
@@ -69,9 +72,9 @@ export function buildRequest(operation: string, getParam: GetParam): IHttpReques
 		if (format) queryParams.format = format;
 	} else if (operation === 'selectedMultiple') {
 		queryParams.url = getParam('url') as string;
-		const parsed = parseJsonParam(getParam('selectors') as string, 'Selectors');
+		const parsed = parseJsonParam(node, getParam('selectors') as string, 'Selectors');
 		if (!Array.isArray(parsed)) {
-			throw new Error('Selectors must be a JSON array');
+			throw new NodeOperationError(node, 'Selectors must be a JSON array');
 		}
 		queryParams.selectors = parsed as IDataObject[] | string[];
 	}
@@ -81,7 +84,7 @@ export function buildRequest(operation: string, getParam: GetParam): IHttpReques
 		for (const [key, value] of Object.entries(additionalOptions)) {
 			if (value === '' || value === undefined || value === null) continue;
 			if (key === 'headers' && typeof value === 'string') {
-				queryParams[key] = parseJsonParam(value, 'Headers') as IDataObject;
+				queryParams[key] = parseJsonParam(node, value, 'Headers') as IDataObject;
 			} else {
 				queryParams[key] = value as IDataObject[keyof IDataObject];
 			}
@@ -101,10 +104,10 @@ export function buildRequest(operation: string, getParam: GetParam): IHttpReques
 	};
 }
 
-function parseJsonParam(raw: string, label: string): unknown {
+function parseJsonParam(node: INode, raw: string, label: string): unknown {
 	try {
 		return JSON.parse(raw);
 	} catch (e) {
-		throw new Error(`Invalid JSON in ${label} parameter`);
+		throw new NodeOperationError(node, `Invalid JSON in ${label} parameter`);
 	}
 }

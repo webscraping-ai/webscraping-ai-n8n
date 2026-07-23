@@ -1,9 +1,15 @@
-import { IAuthenticateGeneric, ICredentialType, INodeProperties, ICredentialTestRequest } from 'n8n-workflow';
+import { IAuthenticateGeneric, ICredentialType, INodeProperties, ICredentialTestRequest, Icon } from 'n8n-workflow';
 
 export class WebScrapingAiApi implements ICredentialType {
 	// eslint-disable-next-line n8n-nodes-base/cred-class-field-name-uppercase-first-char
 	name = 'webScrapingAiApi';
 	displayName = 'WebScraping.AI API';
+
+	icon: Icon = {
+		light: 'file:../nodes/WebScrapingAi/webscrapingai.svg',
+		dark: 'file:../nodes/WebScrapingAi/webscrapingai.svg',
+	};
+
 	documentationUrl = 'https://webscraping.ai/docs';
 	properties: INodeProperties[] = [
 		{

@@ -17,9 +17,10 @@ export class WebScrapingAi implements INodeType {
 		displayName: 'WebScraping.AI',
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-name-miscased
 		name: 'webScrapingAi',
-		icon: 'file:webscrapingai.svg',
+		icon: { light: 'file:webscrapingai.svg', dark: 'file:webscrapingai.svg' },
 		group: ['transform'],
 		version: 1,
+		usableAsTool: true,
 		subtitle: '={{$parameter["operation"]}}',
 		description: 'AI-powered web scraping with JavaScript rendering and proxies',
 		defaults: {
@@ -359,12 +360,11 @@ export class WebScrapingAi implements INodeType {
 				const getParam: GetParam = (name, fallback) =>
 					this.getNodeParameter(name, i, fallback);
 
-				let requestOptions: IHttpRequestOptions;
-				try {
-					requestOptions = buildRequest(operation, getParam);
-				} catch (err) {
-					throw new NodeOperationError(this.getNode(), (err as Error).message);
-				}
+				const requestOptions: IHttpRequestOptions = buildRequest(
+					this.getNode(),
+					operation,
+					getParam,
+				);
 
 				const response = await this.helpers.httpRequestWithAuthentication.call(
 					this,
