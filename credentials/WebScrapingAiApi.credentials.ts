@@ -7,7 +7,7 @@ export class WebScrapingAiApi implements ICredentialType {
 
 	icon: Icon = {
 		light: 'file:../nodes/WebScrapingAi/webscrapingai.svg',
-		dark: 'file:../nodes/WebScrapingAi/webscrapingai.svg',
+		dark: 'file:../nodes/WebScrapingAi/webscrapingai.dark.svg',
 	};
 
 	documentationUrl = 'https://webscraping.ai/docs';

@@ -17,7 +17,7 @@ export class WebScrapingAi implements INodeType {
 		displayName: 'WebScraping.AI',
 		// eslint-disable-next-line n8n-nodes-base/node-class-description-name-miscased
 		name: 'webScrapingAi',
-		icon: { light: 'file:webscrapingai.svg', dark: 'file:webscrapingai.svg' },
+		icon: { light: 'file:webscrapingai.svg', dark: 'file:webscrapingai.dark.svg' },
 		group: ['transform'],
 		version: 1,
 		usableAsTool: true,
