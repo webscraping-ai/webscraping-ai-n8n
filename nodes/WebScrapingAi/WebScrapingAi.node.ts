@@ -83,6 +83,13 @@ export class WebScrapingAi implements INodeType {
 						action: 'Get text content of webpage',
 						description: 'Get the visible text content of a webpage',
 					},
+					{
+						name: 'Search (SERP)',
+						value: 'serp',
+						action: 'Get search engine results for a query',
+						description:
+							'Get parsed search engine results (organic results, related searches, pagination) for a query',
+					},
 				],
 				default: 'html',
 			},
@@ -99,6 +106,69 @@ export class WebScrapingAi implements INodeType {
 						operation: ['aiQuestion', 'aiFields', 'html', 'text', 'selected', 'selectedMultiple'],
 					},
 				},
+			},
+			// Search (SERP) query
+			{
+				displayName: 'Query',
+				name: 'q',
+				type: 'string',
+				required: true,
+				default: '',
+				placeholder: 'e.g. coffee machines',
+				description: 'Search query',
+				displayOptions: {
+					show: {
+						operation: ['serp'],
+					},
+				},
+			},
+			// Search (SERP) options — separate from the scraping additionalOptions,
+			// which don't apply to /serp
+			{
+				displayName: 'Search Options',
+				name: 'serpOptions',
+				type: 'collection',
+				default: {},
+				placeholder: 'Add Option',
+				displayOptions: {
+					show: {
+						operation: ['serp'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Country',
+						name: 'gl',
+						type: 'string',
+						default: 'us',
+						description: 'Two-letter country code for geolocation of the search (Google gl parameter)',
+					},
+					{
+						displayName: 'Engine',
+						name: 'engine',
+						type: 'options',
+						options: [{ name: 'Google', value: 'google' }],
+						default: 'google',
+						description: 'Search engine to query',
+					},
+					{
+						displayName: 'Language',
+						name: 'hl',
+						type: 'string',
+						default: 'en',
+						description: 'Two-letter language code for the results (Google hl parameter)',
+					},
+					{
+						displayName: 'Page',
+						name: 'page',
+						type: 'number',
+						typeOptions: {
+							minValue: 1,
+						},
+						default: 1,
+						description: 'Results page number (10 results per page)',
+					},
+				],
 			},
 			// AI Question specific field
 			{

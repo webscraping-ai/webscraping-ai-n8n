@@ -16,6 +16,7 @@ WebScraping.AI provides AI-powered web scraping with Chromium JavaScript renderi
 - **Get Selected HTML**: Extract HTML from specific CSS selectors
 - **Get Multiple Selections**: Extract HTML from multiple CSS selectors
 - **Get Account Info**: Retrieve account quota and usage information
+- **Search (SERP)**: Get parsed Google search results for a query
 
 ## Installation
 
@@ -101,9 +102,22 @@ Returns:
 - Next billing cycle reset time
 - Remaining concurrent requests
 
+### Search (SERP)
+Get parsed search engine results for a query. Query-shaped rather than URL-shaped: WebScraping.AI handles proxy routing and parsing, so the scraping Advanced Options below don't apply. Flat 15 credits per search; failed searches are not charged.
+
+**Parameters:**
+- Query (required): The search query, e.g. `coffee machines`
+- Search Options:
+  - Country: Two-letter country code for search geolocation (Google `gl`, default `us`)
+  - Engine: Search engine to query (currently `google`, the default)
+  - Language: Two-letter language code for the results (Google `hl`, default `en`)
+  - Page: Results page number, 10 results per page (default `1`)
+
+Returns JSON with `search_parameters`, `search_information`, `organic_results` (each with `position`, `title`, `link`, `domain`, `displayed_link`, and optional `snippet`/`date`), optional `related_searches`, and `pagination`.
+
 ## Advanced Options
 
-All scraping operations support these advanced options:
+All URL-based scraping operations support these advanced options:
 
 ### Browser & Rendering
 - **Enable JavaScript**: Execute on-page JavaScript (default: true)
@@ -150,10 +164,10 @@ All scraping operations support these advanced options:
 
 ### Scrape Google Search Results
 
-1. Use "Get Selected HTML" operation
-2. Enter Google search URL
-3. Use CSS selector for search results (e.g., ".g")
-4. Extract and process the results
+1. Use "Search (SERP)" operation
+2. Enter the search query (e.g., `coffee machines`)
+3. Optionally set Country, Language, and Page under Search Options
+4. Split out `organic_results` to process each result (`position`, `title`, `link`, `snippet`)
 
 ## Error Handling
 

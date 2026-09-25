@@ -33,12 +33,14 @@ describe('buildRequest', () => {
 			['selected', '/selected'],
 			['selectedMultiple', '/selected-multiple'],
 			['account', '/account'],
+			['serp', '/serp'],
 		])('%s maps to %s', (operation, endpoint) => {
 			const inputs: Record<string, unknown> = {
 				url: 'https://example.com',
 				question: 'q?',
 				fields: '{"x":"y"}',
 				selectors: '["h1"]',
+				q: 'coffee machines',
 			};
 			const req = buildRequest(fakeNode, operation, getParamFrom(inputs));
 			expect(req.url).toBe(`https://api.webscraping.ai${endpoint}`);
@@ -59,9 +61,11 @@ describe('buildRequest', () => {
 			'selected',
 			'selectedMultiple',
 			'account',
+			'serp',
 		])('%s sends from_n8n=true', (operation) => {
 			const inputs: Record<string, unknown> = {
 				url: 'https://example.com',
+				q: 'coffee machines',
 				question: 'q?',
 				fields: '{"x":"y"}',
 				selectors: '["h1"]',
@@ -316,6 +320,60 @@ describe('buildRequest', () => {
 			);
 			expect(req.qs).not.toHaveProperty('js');
 			expect(req.qs).not.toHaveProperty('country');
+		});
+	});
+
+	describe('serp', () => {
+		test('sends only q (plus from_n8n) by default', () => {
+			const req = buildRequest(fakeNode, 'serp', getParamFrom({ q: 'coffee machines' }));
+			expect(req.url).toBe('https://api.webscraping.ai/serp');
+			expect(req.qs).toEqual({ q: 'coffee machines', from_n8n: true });
+		});
+
+		test('maps engine, gl, hl and page from Search Options', () => {
+			const req = buildRequest(fakeNode, 
+				'serp',
+				getParamFrom({
+					q: 'coffee machines',
+					serpOptions: { engine: 'google', gl: 'de', hl: 'de', page: 2 },
+				}),
+			);
+			expect(req.qs).toEqual({
+				q: 'coffee machines',
+				engine: 'google',
+				gl: 'de',
+				hl: 'de',
+				page: 2,
+				from_n8n: true,
+			});
+		});
+
+		test('drops empty options', () => {
+			const req = buildRequest(fakeNode, 
+				'serp',
+				getParamFrom({ q: 'coffee', serpOptions: { gl: '', hl: null, page: undefined } }),
+			);
+			expect(req.qs).toEqual({ q: 'coffee', from_n8n: true });
+		});
+
+		test('ignores scraping additionalOptions and url', () => {
+			const req = buildRequest(fakeNode, 
+				'serp',
+				getParamFrom({
+					q: 'coffee',
+					url: 'https://example.com',
+					additionalOptions: { js: true, proxy: 'residential', country: 'gb' },
+				}),
+			);
+			expect(req.qs).not.toHaveProperty('url');
+			expect(req.qs).not.toHaveProperty('js');
+			expect(req.qs).not.toHaveProperty('proxy');
+			expect(req.qs).not.toHaveProperty('country');
+		});
+
+		test.each([undefined, '', '   '])('rejects empty query (%p)', (q) => {
+			const inputs = q === undefined ? {} : { q };
+			expect(() => buildRequest(fakeNode, 'serp', getParamFrom(inputs))).toThrow(/Query is required/);
 		});
 	});
 

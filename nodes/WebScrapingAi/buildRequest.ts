@@ -23,6 +23,7 @@ const OPERATION_ENDPOINT: Record<string, string> = {
 	selected: '/selected',
 	selectedMultiple: '/selected-multiple',
 	account: '/account',
+	serp: '/serp',
 };
 
 /**
@@ -77,6 +78,19 @@ export function buildRequest(
 			throw new NodeOperationError(node, 'Selectors must be a JSON array');
 		}
 		queryParams.selectors = parsed as IDataObject[] | string[];
+	} else if (operation === 'serp') {
+		// Query-shaped, not URL-shaped: none of the scraping additionalOptions apply.
+		const q = ((getParam('q', '') as string) ?? '').trim();
+		if (!q) {
+			throw new NodeOperationError(node, 'Query is required for the Search (SERP) operation');
+		}
+		queryParams.q = q;
+		const serpOptions = (getParam('serpOptions', {}) as Record<string, unknown>) ?? {};
+		for (const key of ['engine', 'gl', 'hl', 'page']) {
+			const value = serpOptions[key];
+			if (value === '' || value === undefined || value === null) continue;
+			queryParams[key] = value as IDataObject[keyof IDataObject];
+		}
 	}
 
 	if (SCRAPE_OPERATIONS.has(operation)) {
