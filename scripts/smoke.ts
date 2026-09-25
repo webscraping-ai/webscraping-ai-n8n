@@ -1,12 +1,19 @@
 /**
  * Hand-run smoke test against the live API. Not part of the test suite and
  * not shipped (package.json `files` is just `dist`, and tsconfig.json only
- * compiles nodes/ and credentials/). Costs ~32 credits per full sweep: page
- * operations run with js=false on the datacenter proxy; the SERP call alone
- * is 15.
+ * compiles nodes/ and credentials/). Costs ~31 credits per full sweep: page
+ * operations run with js=false on the datacenter proxy, so html/text/selected/
+ * selectedMultiple are 1 credit each (4), aiQuestion/aiFields 6 each (12),
+ * and the SERP call a flat 15. Account is free.
+ *
+ * Results are checked, not just status codes: serp needs non-empty
+ * organic_results and search_parameters.q matching the query, selectedMultiple
+ * needs at least one non-empty inner array, aiFields a non-empty object, the
+ * rest a non-empty body. Printed lines never contain the API key.
  *
  * Usage:
  *   WEBSCRAPING_AI_API_KEY=... npm run smoke
+ *   WEBSCRAPING_AI_API_URL=http://localhost:3000 ...   (optional; needs a scheme)
  *
  * Each operation's request comes from the real `buildRequest` helper. The
  * script adds `api_key` to `qs` the way the credential's generic auth does,
@@ -69,6 +76,7 @@ const node: INode = {
 };
 
 const target = 'https://example.com';
+const serpQuery = 'coffee machines';
 const cheap = { js: false, proxy: 'datacenter' };
 
 // Parameter values as n8n would hand them to getNodeParameter: what the user
@@ -95,12 +103,57 @@ const cases: Array<[string, Record<string, unknown>]> = [
 	['text', { url: target, text_format: 'plain', return_links: false, additionalOptions: cheap }],
 	['selected', { url: target, selector: 'h1', format: 'json', additionalOptions: cheap }],
 	['selectedMultiple', { url: target, selectors: '["h1", "p"]', additionalOptions: cheap }],
-	['serp', { q: 'coffee machines', serpOptions: {} }],
+	['serp', { q: serpQuery, serpOptions: {} }],
 	['account', {}],
 ];
 
 function preview(body: string): string {
 	return body.slice(0, 120).replace(/\s+/g, ' ');
+}
+
+/** Strip the API key (raw or URL-encoded) and any `api_key=...` from text. */
+function redact(text: string, apiKey: string): string {
+	let out = text.replace(/(api_key=)[^&\s"'<>]*/gi, '$1[REDACTED]');
+	for (const form of new Set([apiKey, encodeURIComponent(apiKey), qsEncode(apiKey)])) {
+		out = out.split(form).join('[REDACTED]');
+	}
+	return out;
+}
+
+/** Return a problem description if a 2xx body is the wrong shape, else undefined. */
+function checkBody(operation: string, body: string): string | undefined {
+	if (body.trim().length === 0) return 'empty body';
+	switch (operation) {
+		case 'serp': {
+			const r = JSON.parse(body) as {
+				organic_results?: unknown[];
+				search_parameters?: { q?: unknown };
+			};
+			if (!Array.isArray(r.organic_results) || r.organic_results.length === 0) {
+				return 'organic_results is empty';
+			}
+			if (r.search_parameters?.q !== serpQuery) {
+				return `search_parameters.q is ${JSON.stringify(r.search_parameters?.q)}, expected ${JSON.stringify(serpQuery)}`;
+			}
+			return undefined;
+		}
+		case 'selectedMultiple': {
+			// The API answers mis-encoded selectors with an empty [[]], not an error.
+			const r = JSON.parse(body) as unknown;
+			if (!Array.isArray(r)) return 'expected a JSON array';
+			const anyMatch = r.some((inner) => Array.isArray(inner) && inner.length > 0);
+			return anyMatch ? undefined : 'no matches (selectors not received?)';
+		}
+		case 'aiFields': {
+			const r = JSON.parse(body) as unknown;
+			if (!r || typeof r !== 'object' || Array.isArray(r) || Object.keys(r).length === 0) {
+				return 'expected a non-empty JSON object';
+			}
+			return undefined;
+		}
+		default:
+			return undefined;
+	}
 }
 
 async function main(): Promise<number> {
@@ -110,6 +163,21 @@ async function main(): Promise<number> {
 		return 2;
 	}
 	const baseUrl = (process.env.WEBSCRAPING_AI_API_URL || PROD_BASE_URL).replace(/\/+$/, '');
+	// Validate up front: fetch() on a scheme-less URL throws "Failed to parse
+	// URL from <url>", and that URL carries api_key.
+	let parsedBase: URL;
+	try {
+		parsedBase = new URL(baseUrl);
+	} catch {
+		console.error(
+			`WEBSCRAPING_AI_API_URL is not a valid absolute URL (include http:// or https://): ${redact(baseUrl, apiKey)}`,
+		);
+		return 2;
+	}
+	if (parsedBase.protocol !== 'http:' && parsedBase.protocol !== 'https:') {
+		console.error(`WEBSCRAPING_AI_API_URL must use http or https, got ${parsedBase.protocol}`);
+		return 2;
+	}
 
 	let failures = 0;
 	for (const [operation, params] of cases) {
@@ -128,21 +196,21 @@ async function main(): Promise<number> {
 				signal: AbortSignal.timeout(90_000),
 			});
 			const body = await response.text();
-			// The API answers mis-encoded selectors with an empty [[]], not an error.
-			if (response.ok && operation === 'selectedMultiple' && JSON.parse(body).flat().length === 0) {
-				failures += 1;
-				console.log(`  FAIL ${name}  no matches (selectors not received?): ${body}`);
-			} else if (response.ok && body.trim().length > 0) {
-				console.log(`  ok   ${name}  ${preview(body)}`);
+			const problem = response.ok ? checkBody(operation, body) : `HTTP ${response.status}`;
+			if (!problem) {
+				console.log(redact(`  ok   ${name}  ${preview(body)}`, apiKey));
 			} else {
 				failures += 1;
-				console.log(`  FAIL ${name}  HTTP ${response.status}: ${body.slice(0, 300)}`);
+				console.log(redact(`  FAIL ${name}  ${problem}: ${body.slice(0, 300)}`, apiKey));
 			}
 		} catch (err) {
 			failures += 1;
 			const e = err as Error;
 			console.log(
-				`  FAIL ${name}  ${e?.constructor?.name ?? 'Error'}: ${e?.message ?? String(err)}`,
+				redact(
+					`  FAIL ${name}  ${e?.constructor?.name ?? 'Error'}: ${e?.message ?? String(err)}`,
+					apiKey,
+				),
 			);
 		}
 	}
@@ -152,7 +220,9 @@ async function main(): Promise<number> {
 main().then(
 	(code) => process.exit(code),
 	(err) => {
-		console.error(err);
+		const key = process.env.WEBSCRAPING_AI_API_KEY;
+		const text = err instanceof Error ? (err.stack ?? err.message) : String(err);
+		console.error(key ? redact(text, key) : text);
 		process.exit(1);
 	},
 );
