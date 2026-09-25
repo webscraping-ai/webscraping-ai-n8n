@@ -3,6 +3,7 @@
 ## 1.1.0
 
 - New **Search (SERP)** operation calling the `/serp` endpoint: required Query plus Country (`gl`), Engine (`google`), Language (`hl`), and Page options. Returns parsed Google results as JSON. The scraping Additional Options (JS, proxy, country, headers, etc.) are not shown for this operation.
+- Fix **Selected Multiple** always returning `[[]]`: n8n's default query encoding sent `selectors[0]=h1&selectors[1]=p`, which the API silently ignores. Arrays are now sent as repeated keys (`selectors=h1&selectors=p`).
 
 ## 1.0.3
 

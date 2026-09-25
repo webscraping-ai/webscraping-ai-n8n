@@ -12,9 +12,9 @@
  * script adds `api_key` to `qs` the way the credential's generic auth does,
  * then encodes `qs` the way n8n's httpRequest helper does: n8n-core sets
  * axios's default paramsSerializer to `qs.stringify(params, { arrayFormat:
- * 'indices' })` (request-helpers/axios-config.js), and buildRequest sets no
- * `arrayFormat` override. On the wire that looks like:
- *   selectors%5B0%5D=h1&selectors%5B1%5D=p   (arrays -> indices)
+ * 'indices' })` (request-helpers/axios-config.js), but honours a per-request
+ * `arrayFormat`, and buildRequest sets `arrayFormat: 'repeat'`. On the wire that looks like:
+ *   selectors=h1&selectors=p                 (arrays -> repeated keys)
  *   fields%5Btitle%5D=Page%20title           (objects -> bracketed keys)
  *   headers%5BX-Foo%5D=bar
  */
@@ -24,7 +24,7 @@ import { buildRequest, GetParam } from '../nodes/WebScrapingAi/buildRequest';
 
 const PROD_BASE_URL = 'https://api.webscraping.ai';
 
-// Mirrors qs.stringify(obj, { arrayFormat: 'indices' }) with qs's defaults
+// Mirrors qs.stringify(obj, { arrayFormat }) with qs's defaults
 // (RFC 3986 encoding of keys and values; undefined skipped; null -> "key=";
 // empty arrays/objects skipped; booleans/numbers stringified).
 function qsEncode(value: string): string {
@@ -34,14 +34,17 @@ function qsEncode(value: string): string {
 	);
 }
 
-function qsStringify(params: Record<string, unknown>): string {
+function qsStringify(
+	params: Record<string, unknown>,
+	arrayFormat: 'indices' | 'repeat' = 'indices',
+): string {
 	const parts: string[] = [];
 	const walk = (key: string, value: unknown): void => {
 		if (value === undefined) return;
 		if (value === null) {
 			parts.push(`${qsEncode(key)}=`);
 		} else if (Array.isArray(value)) {
-			value.forEach((v, i) => walk(`${key}[${i}]`, v));
+			value.forEach((v, i) => walk(arrayFormat === 'repeat' ? key : `${key}[${i}]`, v));
 		} else if (value instanceof Date) {
 			parts.push(`${qsEncode(key)}=${qsEncode(value.toISOString())}`);
 		} else if (typeof value === 'object') {
@@ -118,14 +121,18 @@ async function main(): Promise<number> {
 
 			// Credential generic auth: qs: { api_key: '={{$credentials.apiKey}}' }
 			const qs = { ...(request.qs ?? {}), api_key: apiKey };
-			const url = `${request.url.replace(PROD_BASE_URL, baseUrl)}?${qsStringify(qs)}`;
+			const url = `${request.url.replace(PROD_BASE_URL, baseUrl)}?${qsStringify(qs, request.arrayFormat === 'repeat' ? 'repeat' : 'indices')}`;
 
 			const response = await fetch(url, {
 				method: request.method ?? 'GET',
 				signal: AbortSignal.timeout(90_000),
 			});
 			const body = await response.text();
-			if (response.ok && body.trim().length > 0) {
+			// The API answers mis-encoded selectors with an empty [[]], not an error.
+			if (response.ok && operation === 'selectedMultiple' && JSON.parse(body).flat().length === 0) {
+				failures += 1;
+				console.log(`  FAIL ${name}  no matches (selectors not received?): ${body}`);
+			} else if (response.ok && body.trim().length > 0) {
 				console.log(`  ok   ${name}  ${preview(body)}`);
 			} else {
 				failures += 1;
@@ -134,7 +141,9 @@ async function main(): Promise<number> {
 		} catch (err) {
 			failures += 1;
 			const e = err as Error;
-			console.log(`  FAIL ${name}  ${e?.constructor?.name ?? 'Error'}: ${e?.message ?? String(err)}`);
+			console.log(
+				`  FAIL ${name}  ${e?.constructor?.name ?? 'Error'}: ${e?.message ?? String(err)}`,
+			);
 		}
 	}
 	return failures === 0 ? 0 : 1;

@@ -147,6 +147,14 @@ describe('buildRequest', () => {
 			expect((req.qs as { selectors: unknown }).selectors).toEqual(['h1', '.price']);
 		});
 
+		test('asks n8n to encode arrays as repeated keys (selectors=a&selectors=b)', () => {
+			const req = buildRequest(fakeNode, 
+				'selectedMultiple',
+				getParamFrom({ url: 'https://example.com', selectors: '["h1", ".price"]' }),
+			);
+			expect(req.arrayFormat).toBe('repeat');
+		});
+
 		test('throws when selectors JSON is not an array', () => {
 			expect(() =>
 				buildRequest(fakeNode, 

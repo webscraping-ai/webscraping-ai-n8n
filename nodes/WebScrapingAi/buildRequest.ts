@@ -113,6 +113,10 @@ export function buildRequest(
 		url: `${BASE_URL}${endpoint}`,
 		method: 'GET',
 		qs: queryParams,
+		// The API reads repeated keys (selectors=h1&selectors=p). n8n's default
+		// `indices` (selectors[0]=h1) is silently ignored and /selected-multiple
+		// returns [[]]. Objects (headers, fields) still encode as headers[Cookie]=.
+		arrayFormat: 'repeat',
 		returnFullResponse: true,
 		json: false,
 	};
