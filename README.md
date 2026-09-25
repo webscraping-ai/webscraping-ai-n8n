@@ -182,6 +182,16 @@ The node handles the following error scenarios:
 
 Enable "Continue on Fail" in the node settings to handle errors gracefully in your workflow.
 
+## Live smoke test (development)
+
+`scripts/smoke.ts` sends one live API request for each of the 8 operations on `https://example.com` (the SERP operation searches for "coffee machines"). Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does (`qs.stringify` with `arrayFormat: 'indices'`, so selectors go out as `selectors[0]=h1` and fields and headers as `fields[title]=...`). It prints `ok`/`FAIL` for each operation and exits non-zero if any operation fails.
+
+```bash
+WEBSCRAPING_AI_API_KEY=your-key npm run smoke
+```
+
+It uses real credits: about 32 per run (page operations run with `js: false` and the `datacenter` proxy; the SERP call alone costs 15). The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
+
 ## Resources
 
 - [WebScraping.AI](https://webscraping.ai) — features, pricing, signup

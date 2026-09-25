@@ -31,6 +31,7 @@
 		"lint": "eslint nodes credentials package.json",
 		"lintfix": "eslint nodes credentials package.json --fix",
 		"test": "jest",
+		"smoke": "npx rimraf .smoke && tsc -p tsconfig.smoke.json && node .smoke/scripts/smoke.js",
 		"prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes credentials package.json"
 	},
 	"files": [
