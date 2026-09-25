@@ -89,6 +89,11 @@ export function buildRequest(
 		for (const key of ['engine', 'gl', 'hl', 'page']) {
 			const value = serpOptions[key];
 			if (value === '' || value === undefined || value === null) continue;
+			// The UI enforces minValue 1, but expressions bypass it, and the API
+			// silently serves (and bills) page 1 for an invalid page.
+			if (key === 'page' && !(Number.isSafeInteger(value) && (value as number) >= 1)) {
+				throw new NodeOperationError(node, 'Page must be a whole number of 1 or more');
+			}
 			queryParams[key] = value as IDataObject[keyof IDataObject];
 		}
 	}

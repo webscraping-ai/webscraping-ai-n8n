@@ -332,6 +332,12 @@ describe('buildRequest', () => {
 	});
 
 	describe('serp', () => {
+		test.each([0, -1, 1.5, NaN, '2'])('rejects invalid page %p', (page) => {
+			expect(() =>
+				buildRequest(fakeNode, 'serp', getParamFrom({ q: 'coffee', serpOptions: { page } })),
+			).toThrow('Page must be a whole number of 1 or more');
+		});
+
 		test('sends only q (plus from_n8n) by default', () => {
 			const req = buildRequest(fakeNode, 'serp', getParamFrom({ q: 'coffee machines' }));
 			expect(req.url).toBe('https://api.webscraping.ai/serp');
