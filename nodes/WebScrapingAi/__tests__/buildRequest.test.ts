@@ -34,6 +34,7 @@ describe('buildRequest', () => {
 			['selectedMultiple', '/selected-multiple'],
 			['account', '/account'],
 			['serp', '/serp'],
+			['data', '/data'],
 		])('%s maps to %s', (operation, endpoint) => {
 			const inputs: Record<string, unknown> = {
 				url: 'https://example.com',
@@ -62,6 +63,7 @@ describe('buildRequest', () => {
 			'selectedMultiple',
 			'account',
 			'serp',
+			'data',
 		])('%s sends from_n8n=true', (operation) => {
 			const inputs: Record<string, unknown> = {
 				url: 'https://example.com',
@@ -388,6 +390,155 @@ describe('buildRequest', () => {
 		test.each([undefined, '', '   '])('rejects empty query (%p)', (q) => {
 			const inputs = q === undefined ? {} : { q };
 			expect(() => buildRequest(fakeNode, 'serp', getParamFrom(inputs))).toThrow(/Query is required/);
+		});
+	});
+
+	describe('data', () => {
+		const yt = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+
+		test('sends only url (plus from_n8n) with UI defaults', () => {
+			const req = buildRequest(
+				fakeNode,
+				'data',
+				getParamFrom({
+					url: yt,
+					country: '',
+					transcript: false,
+					transcript_language: '',
+					extraParams: {},
+				}),
+			);
+			expect(req.url).toBe('https://api.webscraping.ai/data');
+			expect(req.qs).toEqual({ url: yt, from_n8n: true });
+		});
+
+		test('maps country, transcript, transcript_language and extra params', () => {
+			const req = buildRequest(
+				fakeNode,
+				'data',
+				getParamFrom({
+					url: yt,
+					country: 'de',
+					transcript: true,
+					transcript_language: 'en',
+					extraParams: {
+						parameter: [
+							{ name: 'future_flag', value: 'yes' },
+							{ name: 'a&b', value: 'c=d&e' },
+							{ name: '', value: 'ignored' },
+						],
+					},
+				}),
+			);
+			expect(req.qs).toEqual({
+				url: yt,
+				country: 'de',
+				transcript: true,
+				transcript_language: 'en',
+				future_flag: 'yes',
+				'a&b': 'c=d&e',
+				from_n8n: true,
+			});
+		});
+
+		test.each([
+			['country', 'gb'],
+			['country', ''],
+			['transcript', 'gb'],
+			['transcript', ''],
+			['transcript_language', 'gb'],
+			['transcript_language', ''],
+		])(
+			'rejects an extra parameter repeating the named field %s (field value %p)',
+			(name, fieldValue) => {
+				expect(() =>
+					buildRequest(
+						fakeNode,
+						'data',
+						getParamFrom({
+							url: yt,
+							[name]: fieldValue,
+							extraParams: { parameter: [{ name, value: 'fr' }] },
+						}),
+					),
+				).toThrow(`Extra Parameters must not contain "${name}": use the ${name} field instead`);
+			},
+		);
+
+		test('rejects a name repeated across two Extra Parameters rows', () => {
+			expect(() =>
+				buildRequest(
+					fakeNode,
+					'data',
+					getParamFrom({
+						url: yt,
+						extraParams: {
+							parameter: [
+								{ name: 'future', value: 'a' },
+								{ name: ' future ', value: 'b' },
+							],
+						},
+					}),
+				),
+			).toThrow('Extra Parameters contain "future" more than once');
+		});
+
+		test.each([42, true, { a: 1 }, ['x']])('rejects a non-string URL (%p)', (url) => {
+			expect(() => buildRequest(fakeNode, 'data', getParamFrom({ url }))).toThrow(
+				'URL must be a string',
+			);
+		});
+
+		test('sends an arbitrary unknown-site URL unmodified, with no client-side error', () => {
+			// Surrounding whitespace is trimmed (like serp's q); nothing else changes:
+			// no lower-casing, decoding, re-encoding or fragment dropping.
+			const target = '  https://Example.COM/A%2Fb/ünï?x=1&y=a b#Frag  ';
+			const req = buildRequest(fakeNode, 'data', getParamFrom({ url: target }));
+			expect((req.qs as Record<string, unknown>).url).toBe('https://Example.COM/A%2Fb/ünï?x=1&y=a b#Frag');
+		});
+
+		test.each([undefined, '', '   '])('rejects empty url (%p)', (url) => {
+			const inputs = url === undefined ? {} : { url };
+			expect(() => buildRequest(fakeNode, 'data', getParamFrom(inputs))).toThrow(/URL is required/);
+		});
+
+		test.each(['api_key', 'url'])('rejects %s in Extra Parameters', (name) => {
+			const secret = 'super-secret-value';
+			let error: Error | undefined;
+			try {
+				buildRequest(
+					fakeNode,
+					'data',
+					getParamFrom({ url: yt, extraParams: { parameter: [{ name, value: secret }] } }),
+				);
+			} catch (e) {
+				error = e as Error;
+			}
+			expect(error?.message).toBe(`Extra Parameters must not contain "${name}"`);
+			// The rejected value (possibly an API key) is never echoed.
+			expect(error?.message).not.toContain(secret);
+		});
+
+		test('rejects an object-valued extra parameter', () => {
+			expect(() =>
+				buildRequest(
+					fakeNode,
+					'data',
+					getParamFrom({ url: yt, extraParams: { parameter: [{ name: 'x', value: { a: 1 } }] } }),
+				),
+			).toThrow(/must be a string, number or boolean/);
+		});
+
+		test('ignores scraping additionalOptions', () => {
+			const req = buildRequest(
+				fakeNode,
+				'data',
+				getParamFrom({
+					url: yt,
+					additionalOptions: { js: true, proxy: 'residential', timeout: 5000, country: 'gb' },
+				}),
+			);
+			expect(req.qs).toEqual({ url: yt, from_n8n: true });
 		});
 	});
 

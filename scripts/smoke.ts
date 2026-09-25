@@ -1,13 +1,17 @@
 /**
  * Hand-run smoke test against the live API. Not part of the test suite and
  * not shipped (package.json `files` is just `dist`, and tsconfig.json only
- * compiles nodes/ and credentials/). Costs ~31 credits per full sweep: page
+ * compiles nodes/ and credentials/). Costs ~46 credits per full sweep: page
  * operations run with js=false on the datacenter proxy, so html/text/selected/
  * selectedMultiple are 1 credit each (4), aiQuestion/aiFields 6 each (12),
- * and the SERP call a flat 15. Account is free.
+ * and the SERP and YouTube /data calls a flat 15 each. Account and the
+ * unsupported-URL /data call (a 400) are free.
  *
  * Results are checked, not just status codes: serp needs non-empty
- * organic_results and search_parameters.q matching the query, selectedMultiple
+ * organic_results and search_parameters.q matching the query, data needs
+ * parse_status ok, provider youtube and a non-empty data.title, data on
+ * https://example.com/ must be the server's 400 (proving there's no
+ * client-side site filter), selectedMultiple
  * needs at least one non-empty inner array, aiFields a non-empty object, the
  * rest a non-empty body. Printed lines never contain the API key.
  *
@@ -78,11 +82,14 @@ const node: INode = {
 const target = 'https://example.com';
 const serpQuery = 'coffee machines';
 const cheap = { js: false, proxy: 'datacenter' };
+const dataUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 
 // Parameter values as n8n would hand them to getNodeParameter: what the user
 // typed plus the node's UI defaults for the other visible fields.
-const cases: Array<[string, Record<string, unknown>]> = [
+// [label, operation, params, expected HTTP status (200 unless given)]
+const cases: Array<[string, string, Record<string, unknown>, number?]> = [
 	[
+		'aiQuestion',
 		'aiQuestion',
 		{
 			url: target,
@@ -93,18 +100,41 @@ const cases: Array<[string, Record<string, unknown>]> = [
 	],
 	[
 		'aiFields',
+		'aiFields',
 		{
 			url: target,
 			fields: '{"title":"Page title","description":"Short description"}',
 			additionalOptions: cheap,
 		},
 	],
-	['html', { url: target, format: 'json', return_script_result: false, additionalOptions: cheap }],
-	['text', { url: target, text_format: 'plain', return_links: false, additionalOptions: cheap }],
-	['selected', { url: target, selector: 'h1', format: 'json', additionalOptions: cheap }],
-	['selectedMultiple', { url: target, selectors: '["h1", "p"]', additionalOptions: cheap }],
-	['serp', { q: serpQuery, serpOptions: {} }],
-	['account', {}],
+	[
+		'html',
+		'html',
+		{ url: target, format: 'json', return_script_result: false, additionalOptions: cheap },
+	],
+	[
+		'text',
+		'text',
+		{ url: target, text_format: 'plain', return_links: false, additionalOptions: cheap },
+	],
+	[
+		'selected',
+		'selected',
+		{ url: target, selector: 'h1', format: 'json', additionalOptions: cheap },
+	],
+	[
+		'selectedMultiple',
+		'selectedMultiple',
+		{ url: target, selectors: '["h1", "p"]', additionalOptions: cheap },
+	],
+	['serp', 'serp', { q: serpQuery, serpOptions: {} }],
+	[
+		'data',
+		'data',
+		{ url: dataUrl, country: '', transcript: false, transcript_language: '', extraParams: {} },
+	],
+	['data:unsupported', 'data', { url: `${target}/` }, 400],
+	['account', 'account', {}],
 ];
 
 function preview(body: string): string {
@@ -135,6 +165,19 @@ function checkBody(operation: string, body: string): string | undefined {
 			if (r.search_parameters?.q !== serpQuery) {
 				return `search_parameters.q is ${JSON.stringify(r.search_parameters?.q)}, expected ${JSON.stringify(serpQuery)}`;
 			}
+			return undefined;
+		}
+		case 'data': {
+			const r = JSON.parse(body) as {
+				parse_status?: unknown;
+				request_parameters?: { provider?: unknown };
+				data?: { title?: unknown } | null;
+			};
+			if (r.parse_status !== 'ok') return `parse_status is ${JSON.stringify(r.parse_status)}`;
+			if (r.request_parameters?.provider !== 'youtube') {
+				return `request_parameters.provider is ${JSON.stringify(r.request_parameters?.provider)}`;
+			}
+			if (typeof r.data?.title !== 'string' || r.data.title === '') return 'data.title is empty';
 			return undefined;
 		}
 		case 'selectedMultiple': {
@@ -180,8 +223,8 @@ async function main(): Promise<number> {
 	}
 
 	let failures = 0;
-	for (const [operation, params] of cases) {
-		const name = operation.padEnd(18);
+	for (const [label, operation, params, expectedStatus = 200] of cases) {
+		const name = label.padEnd(18);
 		try {
 			const getParam: GetParam = (paramName, fallback) =>
 				paramName in params ? params[paramName] : fallback;
@@ -196,7 +239,17 @@ async function main(): Promise<number> {
 				signal: AbortSignal.timeout(90_000),
 			});
 			const body = await response.text();
-			const problem = response.ok ? checkBody(operation, body) : `HTTP ${response.status}`;
+			let problem: string | undefined;
+			if (expectedStatus !== 200) {
+				if (response.status !== expectedStatus) {
+					problem = `HTTP ${response.status}, expected ${expectedStatus}`;
+				} else if (!body.includes('Unsupported URL')) {
+					// Proves the 400 came from the server's /data check, not something else.
+					problem = 'message does not contain "Unsupported URL"';
+				}
+			} else {
+				problem = response.ok ? checkBody(operation, body) : `HTTP ${response.status}`;
+			}
 			if (!problem) {
 				console.log(redact(`  ok   ${name}  ${preview(body)}`, apiKey));
 			} else {

@@ -24,7 +24,14 @@ const OPERATION_ENDPOINT: Record<string, string> = {
 	selectedMultiple: '/selected-multiple',
 	account: '/account',
 	serp: '/serp',
+	data: '/data',
 };
+
+// Extra Parameters can't carry these: api_key comes from the credential, and
+// url is the operation's own field.
+const DATA_RESERVED_PARAMS = new Set(['api_key', 'url']);
+// Named fields of the operation: set them there, not as an extra parameter.
+const DATA_NAMED_PARAMS = new Set(['country', 'transcript', 'transcript_language']);
 
 /**
  * Pure request shaper for the WebScraping.AI node. Returned options are
@@ -52,7 +59,11 @@ export function buildRequest(
 		if (format) queryParams.format = format;
 	} else if (operation === 'aiFields') {
 		queryParams.url = getParam('url') as string;
-		queryParams.fields = parseJsonParam(node, getParam('fields') as string, 'Fields') as IDataObject;
+		queryParams.fields = parseJsonParam(
+			node,
+			getParam('fields') as string,
+			'Fields',
+		) as IDataObject;
 	} else if (operation === 'html') {
 		queryParams.url = getParam('url') as string;
 		const format = getParam('format', 'json') as string;
@@ -95,6 +106,55 @@ export function buildRequest(
 				throw new NodeOperationError(node, 'Page must be a whole number of 1 or more');
 			}
 			queryParams[key] = value as IDataObject[keyof IDataObject];
+		}
+	} else if (operation === 'data') {
+		// None of the scraping additionalOptions apply. The URL is deliberately not
+		// checked against a site list: supported sites grow on the server, whose
+		// free 400 is the source of truth for "unsupported".
+		const rawUrl = getParam('url', '');
+		if (rawUrl !== undefined && rawUrl !== null && typeof rawUrl !== 'string') {
+			throw new NodeOperationError(node, 'URL must be a string');
+		}
+		// Trimmed like serp's q (deliberate); otherwise sent byte for byte.
+		const url = (rawUrl ?? '').trim();
+		if (!url) {
+			throw new NodeOperationError(node, 'URL is required for the Get Structured Data operation');
+		}
+		const extra = (getParam('extraParams', {}) as { parameter?: unknown } | null) ?? {};
+		const pairs = Array.isArray(extra.parameter) ? extra.parameter : [];
+		for (const pair of pairs as Array<{ name?: unknown; value?: unknown }>) {
+			const name = typeof pair?.name === 'string' ? pair.name.trim() : '';
+			if (!name) continue;
+			if (DATA_RESERVED_PARAMS.has(name)) {
+				throw new NodeOperationError(node, `Extra Parameters must not contain "${name}"`);
+			}
+			if (DATA_NAMED_PARAMS.has(name)) {
+				throw new NodeOperationError(
+					node,
+					`Extra Parameters must not contain "${name}": use the ${name} field instead`,
+				);
+			}
+			if (Object.prototype.hasOwnProperty.call(queryParams, name)) {
+				throw new NodeOperationError(node, `Extra Parameters contain "${name}" more than once`);
+			}
+			const value = pair.value;
+			if (value === undefined || value === null) continue;
+			if (typeof value === 'object') {
+				throw new NodeOperationError(
+					node,
+					`Extra parameter "${name}" must be a string, number or boolean`,
+				);
+			}
+			queryParams[name] = value as string | number | boolean;
+		}
+		queryParams.url = url;
+		const country = getParam('country', '');
+		if (typeof country === 'string' && country.trim()) queryParams.country = country.trim();
+		const transcript = getParam('transcript', false);
+		if (transcript === true) queryParams.transcript = true;
+		const transcriptLanguage = getParam('transcript_language', '');
+		if (typeof transcriptLanguage === 'string' && transcriptLanguage.trim()) {
+			queryParams.transcript_language = transcriptLanguage.trim();
 		}
 	}
 

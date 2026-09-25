@@ -17,6 +17,7 @@ WebScraping.AI provides AI-powered web scraping with Chromium JavaScript renderi
 - **Get Multiple Selections**: Extract HTML from multiple CSS selectors
 - **Get Account Info**: Retrieve account quota and usage information
 - **Search (SERP)**: Get parsed Google search results for a query
+- **Get Structured Data**: Get structured JSON for a page on a supported site (e.g. YouTube, TikTok, X, LinkedIn, Instagram, Reddit) from its normal URL
 
 ## Installation
 
@@ -115,6 +116,18 @@ Get parsed search engine results for a query. Query-shaped rather than URL-shape
 
 Returns JSON with `search_parameters`, `search_information`, `organic_results` (each with `position`, `title`, `link`, `domain`, `displayed_link`, and optional `snippet`/`date`), optional `related_searches`, and `pagination`.
 
+### Get Structured Data
+Get structured JSON for a public page on a supported site from its normal URL: for example a YouTube video, channel or playlist, a TikTok video or profile, an X post or profile, a LinkedIn company, job or profile, an Instagram post, reel or profile, or a Reddit post, subreddit or user. The site (`provider`) and page kind (`type`) are detected from the URL. These are examples: more sites are added on the server over time and work with this node without an update, so the node never checks the URL itself. An unsupported URL or page type returns a 400 that is not charged. Its message lists what is supported. For other sites, use AI Extract Fields. Flat 15 credits per request, including pages that parse empty (`parse_failed`) or no longer exist (`not_found`); failed fetches are not charged. The scraping Advanced Options below don't apply.
+
+**Parameters:**
+- URL (required): The page's normal URL, e.g. `https://www.youtube.com/watch?v=dQw4w9WgXcQ`. Surrounding whitespace is trimmed; otherwise it is sent unchanged.
+- Country: Two-letter country code of the proxy used to fetch the page, `us` by default.
+- Transcript: YouTube videos only. Also fetch the video's transcript into `data.transcript`. It's null when no matching captions are available. If the transcript fetch itself fails, the whole request fails with a 500 and is not charged.
+- Transcript Language: Caption language to pick, e.g. `en` or `de`. Without it, English is preferred, then the first available track. If the video has no captions in that language, `data.transcript` is null.
+- Extra Parameters: Name/value pairs sent to the API as-is, for site-specific parameters added after this node version. `url`, `api_key`, a name that repeats one of the fields above, or a name used in two rows is an error.
+
+Returns JSON with `request_parameters` (`url`, `provider`, `type`), `parse_status` (`ok`, `parse_failed` or `not_found`) and `data`, whose snake_case fields depend on `provider` and `type` (`data` can be `null`).
+
 ## Advanced Options
 
 All URL-based scraping operations support these advanced options:
@@ -169,6 +182,13 @@ All URL-based scraping operations support these advanced options:
 3. Optionally set Country, Language, and Page under Search Options
 4. Split out `organic_results` to process each result (`position`, `title`, `link`, `snippet`)
 
+### Get YouTube Video Details and Transcript
+
+1. Use "Get Structured Data" operation
+2. Enter the video URL (e.g., `https://www.youtube.com/watch?v=dQw4w9WgXcQ`)
+3. Turn on Transcript to also get `data.transcript`
+4. Read `data.title`, `data.views`, `data.channel` and so on from the output
+
 ## Error Handling
 
 The node handles the following error scenarios:
@@ -184,13 +204,13 @@ Enable "Continue on Fail" in the node settings to handle errors gracefully in yo
 
 ## Live smoke test (development)
 
-`scripts/smoke.ts` sends one live API request for each of the 8 operations on `https://example.com` (the SERP operation searches for "coffee machines"). Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
+`scripts/smoke.ts` sends one live API request for each of the 9 operations on `https://example.com` (the SERP operation searches for "coffee machines"; Get Structured Data fetches `https://www.youtube.com/watch?v=dQw4w9WgXcQ`), plus one Get Structured Data request on `https://example.com/` that must come back as the server's 400 with a message containing `Unsupported URL`, proving the node has no client-side site filter. Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query, Get Structured Data must return `parse_status` `ok`, `request_parameters.provider` `youtube` and a non-empty `data.title`, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
 
 ```bash
 WEBSCRAPING_AI_API_KEY=your-key npm run smoke
 ```
 
-It uses real credits: about 31 per run (page operations run with `js: false` and the `datacenter` proxy, so HTML/Text/Selected/Selected Multiple cost 1 each, AI Question/AI Fields 6 each, and the SERP call 15). The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
+It uses real credits: about 46 per run (page operations run with `js: false` and the `datacenter` proxy, so HTML/Text/Selected/Selected Multiple cost 1 each, AI Question/AI Fields 6 each, and the SERP and YouTube structured-data calls 15 each; the unsupported-URL call is free). The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
 
 ## Resources
 

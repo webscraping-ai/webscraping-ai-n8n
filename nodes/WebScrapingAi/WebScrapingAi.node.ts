@@ -78,6 +78,13 @@ export class WebScrapingAi implements INodeType {
 						description: 'Get HTML content of selected page areas by CSS selector',
 					},
 					{
+						name: 'Get Structured Data',
+						value: 'data',
+						action: 'Get structured data for a page on a supported site',
+						description:
+							'Get structured JSON for a page on a supported site (e.g. YouTube, TikTok, X, LinkedIn, Instagram, Reddit) from its normal URL',
+					},
+					{
 						name: 'Get Text',
 						value: 'text',
 						action: 'Get text content of webpage',
@@ -106,6 +113,101 @@ export class WebScrapingAi implements INodeType {
 						operation: ['aiQuestion', 'aiFields', 'html', 'text', 'selected', 'selectedMultiple'],
 					},
 				},
+			},
+			// Get Structured Data (/data) — own fields; the scraping additionalOptions don't apply
+			{
+				displayName: 'URL',
+				name: 'url',
+				type: 'string',
+				required: true,
+				default: '',
+				placeholder: 'e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+				description:
+					'Normal URL of a public page on a supported site, e.g. a YouTube video, TikTok profile, X post, LinkedIn company, Instagram reel or Reddit thread. More sites are added on the server over time; an unsupported URL or page type returns a 400 that is not charged, whose message lists what is supported. Use AI Extract Fields for other sites. 15 credits per request.',
+				displayOptions: {
+					show: {
+						operation: ['data'],
+					},
+				},
+			},
+			{
+				displayName: 'Country',
+				name: 'country',
+				type: 'string',
+				default: '',
+				placeholder: 'e.g. us',
+				description: 'Two-letter country code of the proxy used to fetch the page, us by default',
+				displayOptions: {
+					show: {
+						operation: ['data'],
+					},
+				},
+			},
+			{
+				displayName: 'Transcript',
+				name: 'transcript',
+				type: 'boolean',
+				default: false,
+				description:
+					"Whether to also fetch the video's transcript into data.transcript (YouTube videos only). It's null when no matching captions are available. If the transcript fetch itself fails, the whole request fails with a 500 and is not charged.",
+				displayOptions: {
+					show: {
+						operation: ['data'],
+					},
+				},
+			},
+			{
+				displayName: 'Transcript Language',
+				name: 'transcript_language',
+				type: 'string',
+				default: '',
+				placeholder: 'e.g. en',
+				description:
+					'Caption language to pick, e.g. en or de (YouTube only, with Transcript on). Without it, English is preferred, then the first available track. If the video has no captions in that language, data.transcript is null.',
+				displayOptions: {
+					show: {
+						operation: ['data'],
+					},
+				},
+			},
+			{
+				displayName: 'Extra Parameters',
+				name: 'extraParams',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				default: {},
+				placeholder: 'Add Parameter',
+				description:
+					'Additional site-specific query parameters sent to the API as-is, for parameters added after this node version. Cannot override the page URL, the API key or the fields above, and each name can be used once.',
+				displayOptions: {
+					show: {
+						operation: ['data'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Parameter',
+						name: 'parameter',
+						values: [
+							{
+								displayName: 'Name',
+								name: 'name',
+								type: 'string',
+								default: '',
+								description: 'Query parameter name',
+							},
+							{
+								displayName: 'Value',
+								name: 'value',
+								type: 'string',
+								default: '',
+								description: 'Query parameter value',
+							},
+						],
+					},
+				],
 			},
 			// Search (SERP) query
 			{
@@ -141,7 +243,8 @@ export class WebScrapingAi implements INodeType {
 						name: 'gl',
 						type: 'string',
 						default: 'us',
-						description: 'Two-letter country code for geolocation of the search (Google gl parameter)',
+						description:
+							'Two-letter country code for geolocation of the search (Google gl parameter)',
 					},
 					{
 						displayName: 'Engine',
@@ -427,8 +530,7 @@ export class WebScrapingAi implements INodeType {
 			try {
 				const operation = this.getNodeParameter('operation', i) as string;
 
-				const getParam: GetParam = (name, fallback) =>
-					this.getNodeParameter(name, i, fallback);
+				const getParam: GetParam = (name, fallback) => this.getNodeParameter(name, i, fallback);
 
 				const requestOptions: IHttpRequestOptions = buildRequest(
 					this.getNode(),
@@ -470,7 +572,9 @@ export class WebScrapingAi implements INodeType {
 					if (apiBody) {
 						try {
 							const apiError =
-								typeof apiBody === 'string' ? JSON.parse(apiBody) : (apiBody as Record<string, unknown>);
+								typeof apiBody === 'string'
+									? JSON.parse(apiBody)
+									: (apiBody as Record<string, unknown>);
 							errorMessage =
 								(apiError.message as string) ||
 								(apiError.detail as string) ||
@@ -479,6 +583,8 @@ export class WebScrapingAi implements INodeType {
 							errorMessage = String(apiBody);
 						}
 					}
+					// The API key rides in the query string; a transport error can quote the URL.
+					errorMessage = String(errorMessage).replace(/(api_key=)[^&\s"'<>]*/gi, '$1[REDACTED]');
 					returnData.push({ json: { error: errorMessage }, pairedItem: { item: i } });
 					continue;
 				}
