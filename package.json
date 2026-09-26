@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-webscraping-ai",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"description": "n8n node to call WebScraping.AI API services - LLM-powered web scraping with JavaScript rendering and proxies.",
 	"keywords": [
 		"n8n-community-node-package",
@@ -45,6 +45,11 @@
 		"nodes": [
 			"dist/nodes/WebScrapingAi/WebScrapingAi.node.js"
 		]
+	},
+	"overrides": {
+		"form-data": "^4.0.6",
+		"lodash": "^4.18.1",
+		"uuid": "^11.1.1"
 	},
 	"devDependencies": {
 		"@types/jest": "^29.5.14",
