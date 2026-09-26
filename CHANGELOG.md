@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.2.1 — 2026-09-26
-- Dev dependencies updated for open Dependabot alerts (`js-yaml`, `brace-expansion`, `browserslist`, `@babel/core`, and `form-data`/`lodash`/`uuid` pinned by `n8n-workflow`). No node or credential changes; the node is now built and tested against `n8n-workflow` 2.x.
+- Dev dependencies updated for open Dependabot alerts (`js-yaml`, `brace-expansion`, `browserslist`, `@babel/core`, and the `form-data` that `n8n-workflow` pins). No node or credential changes. The dev copy of `n8n-workflow` is now pinned to 1.120.14: newer versions pull in `isolated-vm`, a native module that needs Node 24 to build.
 
 ## 1.2.0 — 2026-09-25
 - New **Get Structured Data** operation calling the `/data` endpoint: required URL of a page on a supported site (e.g. YouTube, TikTok, X, LinkedIn, Instagram, Reddit) plus Country, Transcript and Transcript Language, and an **Extra Parameters** list of name/value pairs sent as-is for future site-specific parameters (`url`/`api_key`, a name repeating Country/Transcript/Transcript Language, or a name used twice is an error). Returns `request_parameters` (`provider`, `type`), `parse_status` and `data` as JSON. The URL is never checked against a site list in the node: sites are added on the server, An unsupported URL or page type returns a 400 that is not charged. Its message lists what is supported. The scraping Additional Options are not shown for this operation. 15 credits per request.
