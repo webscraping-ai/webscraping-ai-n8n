@@ -123,7 +123,7 @@ export class WebScrapingAi implements INodeType {
 				default: '',
 				placeholder: 'e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ',
 				description:
-					'Normal URL of a public page on a supported site, e.g. a YouTube video, TikTok profile, X post, LinkedIn company, Instagram reel or Reddit thread. More sites are added on the server over time; an unsupported URL or page type returns a 400 that is not charged, whose message lists what is supported. Use AI Extract Fields for other sites. 15 credits per request.',
+					'Normal URL of a public page on a supported site, e.g. a YouTube video, TikTok profile, X post, LinkedIn company, Instagram reel or Reddit thread. More sites are added on the server over time; an unsupported URL or page type returns a 400 that is not charged, whose message lists what is supported. Use AI Extract Fields for other sites. Priced per site, see https://webscraping.ai/docs#data.',
 				displayOptions: {
 					show: {
 						operation: ['data'],

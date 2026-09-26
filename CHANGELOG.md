@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Docs: stop stating credit prices (they're set server-side and change); link to https://webscraping.ai/docs pricing instead.
+
 ## 1.2.1 — 2026-09-26
 - Dev dependencies updated for open Dependabot alerts (`js-yaml`, `brace-expansion`, `browserslist`, `@babel/core`, and the `form-data` that `n8n-workflow` pins). No node or credential changes. The dev copy of `n8n-workflow` is now pinned to 1.120.14: newer versions pull in `isolated-vm`, a native module that needs Node 24 to build.
 

@@ -38,7 +38,7 @@ npm install n8n-nodes-webscraping-ai
 
 ## Prerequisites
 
-You need to have an account with [WebScraping.AI](https://webscraping.ai) and obtain an API key from your [dashboard](https://webscraping.ai/dashboard). [Sign up](https://webscraping.ai/auth/sign_up) to get started — the free trial includes 2,000 credits, no credit card required.
+You need to have an account with [WebScraping.AI](https://webscraping.ai) and obtain an API key from your [dashboard](https://webscraping.ai/dashboard). [Sign up](https://webscraping.ai/auth/sign_up) to get started — a free trial, no credit card required.
 
 ## Credentials
 
@@ -104,7 +104,7 @@ Returns:
 - Remaining concurrent requests
 
 ### Search (SERP)
-Get parsed search engine results for a query. Query-shaped rather than URL-shaped: WebScraping.AI handles proxy routing and parsing, so the scraping Advanced Options below don't apply. Flat 15 credits per search; failed searches are not charged.
+Get parsed search engine results for a query. Query-shaped rather than URL-shaped: WebScraping.AI handles proxy routing and parsing, so the scraping Advanced Options below don't apply. Priced per search (see [pricing](https://webscraping.ai/docs#serp)); failed searches are not charged.
 
 **Parameters:**
 - Query (required): The search query, e.g. `coffee machines`
@@ -117,7 +117,7 @@ Get parsed search engine results for a query. Query-shaped rather than URL-shape
 Returns JSON with `search_parameters`, `search_information`, `organic_results` (each with `position`, `title`, `link`, `domain`, `displayed_link`, and optional `snippet`/`date`), optional `related_searches`, and `pagination`.
 
 ### Get Structured Data
-Get structured JSON for a public page on a supported site from its normal URL: for example a YouTube video, channel or playlist, a TikTok video or profile, an X post or profile, a LinkedIn company, job or profile, an Instagram post, reel or profile, or a Reddit post, subreddit or user. The site (`provider`) and page kind (`type`) are detected from the URL. These are examples: more sites are added on the server over time and work with this node without an update, so the node never checks the URL itself. An unsupported URL or page type returns a 400 that is not charged. Its message lists what is supported. For other sites, use AI Extract Fields. Flat 15 credits per request, including pages that parse empty (`parse_failed`) or no longer exist (`not_found`); failed fetches are not charged. The scraping Advanced Options below don't apply.
+Get structured JSON for a public page on a supported site from its normal URL: for example a YouTube video, channel or playlist, a TikTok video or profile, an X post or profile, a LinkedIn company, job or profile, an Instagram post, reel or profile, or a Reddit post, subreddit or user. The site (`provider`) and page kind (`type`) are detected from the URL. These are examples: more sites are added on the server over time and work with this node without an update, so the node never checks the URL itself. An unsupported URL or page type returns a 400 that is not charged. Its message lists what is supported. For other sites, use AI Extract Fields. Priced per site (see [pricing](https://webscraping.ai/docs#data)), including pages that parse empty (`parse_failed`) or no longer exist (`not_found`); unsupported URLs and failed fetches are not charged. The scraping Advanced Options below don't apply.
 
 **Parameters:**
 - URL (required): The page's normal URL, e.g. `https://www.youtube.com/watch?v=dQw4w9WgXcQ`. Surrounding whitespace is trimmed; otherwise it is sent unchanged.
