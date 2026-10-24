@@ -97,3 +97,49 @@ describe('execute: data', () => {
 		expect(http).not.toHaveBeenCalled();
 	});
 });
+
+describe('execute: serpLocations', () => {
+	test('returns one item per location', async () => {
+		const austin = {
+			id: '1026201',
+			google_id: 1026201,
+			google_parent_id: 21176,
+			name: 'Austin',
+			canonical_name: 'Austin,Texas,United States',
+			country_code: 'US',
+			target_type: 'City',
+			reach: 974447,
+			gps: [-97.7431, 30.2672],
+		};
+		const country = {
+			id: '2840',
+			google_id: 2840,
+			google_parent_id: null,
+			name: 'United States',
+			canonical_name: 'United States',
+			country_code: 'US',
+			target_type: 'Country',
+			reach: 300000000,
+			gps: [-77.0369, 38.9072],
+		};
+		const http = jest.fn().mockResolvedValue(jsonResponse([austin, country]));
+		const [items] = await new WebScrapingAi().execute.call(
+			context({ operation: 'serpLocations', q: 'austin', limit: 2 }, http),
+		);
+
+		expect(items).toEqual([
+			{ json: austin, pairedItem: { item: 0 } },
+			{ json: country, pairedItem: { item: 0 } },
+		]);
+		expect(http.mock.calls[0][1].url).toBe('https://api.webscraping.ai/serp/locations');
+		expect(http.mock.calls[0][1].qs).toEqual({ q: 'austin', limit: 2, from_n8n: true });
+	});
+
+	test('no matches gives no items', async () => {
+		const http = jest.fn().mockResolvedValue(jsonResponse([]));
+		const [items] = await new WebScrapingAi().execute.call(
+			context({ operation: 'serpLocations', q: 'zzzz' }, http),
+		);
+		expect(items).toEqual([]);
+	});
+});

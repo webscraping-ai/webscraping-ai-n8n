@@ -16,7 +16,8 @@ WebScraping.AI provides AI-powered web scraping with Chromium JavaScript renderi
 - **Get Selected HTML**: Extract HTML from specific CSS selectors
 - **Get Multiple Selections**: Extract HTML from multiple CSS selectors
 - **Get Account Info**: Retrieve account quota and usage information
-- **Search (SERP)**: Get parsed Google search results for a query
+- **Search (SERP)**: Get parsed Google search results for a query, from a chosen location, one or several pages at a time
+- **Search Locations**: Look up location names for Search (SERP) (free)
 - **Get Structured Data**: Get structured JSON for a page on a supported site (e.g. YouTube, TikTok, X, LinkedIn, Instagram, Reddit) from its normal URL
 
 ## Installation
@@ -104,17 +105,35 @@ Returns:
 - Remaining concurrent requests
 
 ### Search (SERP)
-Get parsed search engine results for a query. Query-shaped rather than URL-shaped: WebScraping.AI handles proxy routing and parsing, so the scraping Advanced Options below don't apply. Priced per search (see [pricing](https://webscraping.ai/docs#serp)); failed searches are not charged.
+Get parsed search engine results for a query. Query-shaped rather than URL-shaped: WebScraping.AI handles proxy routing and parsing, so the scraping Advanced Options below don't apply. Billed per results page returned (see [pricing](https://webscraping.ai/docs#serp)); failed searches are not charged.
+
+Every search runs from one fixed location: Location, Latitude and Longitude, or UULE, otherwise the capital of the Country. So repeats and later pages are consistent, and Country defaults to the location's country. Pages fetches up to 5 consecutive pages in one call as one de-duplicated list.
 
 **Parameters:**
 - Query (required): The search query, e.g. `coffee machines`
 - Search Options:
-  - Country: Two-letter country code for search geolocation (Google `gl`, default `us`)
+  - Country: Two-letter country code for the search (Google `gl`). Defaults to the country of Location, Latitude/Longitude or UULE, otherwise `us`
   - Engine: Search engine to query (currently `google`, the default)
   - Language: Two-letter language code for the results (Google `hl`, default `en`)
+  - Latitude / Longitude: Search origin in decimal degrees (set both; sent as plain decimals with up to 7 fraction digits). A number or a decimal string from an expression; a blank value is an error, so leave the option out when there is none
+  - Location: Where the search runs from, e.g. `Austin,Texas,United States`, `Austin, TX` or an `id` from Search Locations. Large cities also match local names, e.g. `Москва`. An unknown name returns a 400 that is not charged
   - Page: Results page number, 10 results per page (default `1`)
+  - Pages: Number of consecutive pages to fetch starting at Page, 1 to 5 (default `1`). Duplicates across pages are removed, `position` counts through the combined list and each result gets a `page` field
+  - Radius (Meters): Radius around Location or Latitude/Longitude, 1 to 1000
+  - UULE: Google-encoded location (`w+CAIQICI…` or `a+…`)
 
-Returns JSON with `search_parameters`, `search_information`, `organic_results` (each with `position`, `title`, `link`, `domain`, `displayed_link`, and optional `snippet`/`date`), optional `related_searches`, and `pagination`.
+Location, Latitude/Longitude and UULE are alternatives: use one of them. Invalid combinations and out-of-range values are rejected by the API with a 400 that is not charged.
+
+Returns JSON with `search_parameters` (including `location_used`, the catalog place searched from: the Location you gave, a UULE's place, or the Country's capital when none is set, absent for Latitude/Longitude searches; `location_requested`, the Location or UULE as sent; `lat`/`lon`, the point searched from; and `radius`/`pages` when set), `search_information`, `organic_results` (each with `position`, `title`, `link`, `domain`, `displayed_link`, and optional `snippet`/`date`; `page` when Pages is more than 1), optional `related_searches`, and `pagination` (with `pages_returned` when Pages is more than 1).
+
+### Search Locations
+Look up names for Search (SERP)'s Location option. Free, no credits used.
+
+**Parameters:**
+- Query: Part of a location name in English, e.g. `austin`. Without it, the most populous locations are returned
+- Limit: Maximum number of locations to return, 1 to 10 (default `10`)
+
+Returns one item per location, most populous first, with `id`, `google_id`, `google_parent_id`, `name`, `canonical_name`, `country_code`, `target_type` (e.g. `City`, `State`, `Country`), `reach` (approximate population) and `gps` (`[longitude, latitude]`). Pass `canonical_name` (or `id`) as Location.
 
 ### Get Structured Data
 Get structured JSON for a public page on a supported site from its normal URL: for example a YouTube video, channel or playlist, a TikTok video or profile, an X post or profile, a LinkedIn company, job or profile, an Instagram post, reel or profile, or a Reddit post, subreddit or user. The site (`provider`) and page kind (`type`) are detected from the URL. These are examples: more sites are added on the server over time and work with this node without an update, so the node never checks the URL itself. An unsupported URL or page type returns a 400 that is not charged. Its message lists what is supported. For other sites, use AI Extract Fields. Priced per site (see [pricing](https://webscraping.ai/docs#data)), including pages that parse empty (`parse_failed`) or no longer exist (`not_found`); unsupported URLs and failed fetches are not charged. The scraping Advanced Options below don't apply.
@@ -182,6 +201,13 @@ All URL-based scraping operations support these advanced options:
 3. Optionally set Country, Language, and Page under Search Options
 4. Split out `organic_results` to process each result (`position`, `title`, `link`, `snippet`)
 
+### Search From a City, Two Pages at Once
+
+1. Optionally use "Search Locations" with Query `austin` and pick the `canonical_name` you want (e.g. `Austin,Texas,United States`)
+2. Use "Search (SERP)" with Query `coffee machines`
+3. Under Search Options set Location to `Austin, TX` (or the `canonical_name` from step 1) and Pages to `2`
+4. `organic_results` holds both pages as one list; each result's `page` says where it came from
+
 ### Get YouTube Video Details and Transcript
 
 1. Use "Get Structured Data" operation
@@ -204,13 +230,13 @@ Enable "Continue on Fail" in the node settings to handle errors gracefully in yo
 
 ## Live smoke test (development)
 
-`scripts/smoke.ts` sends one live API request for each of the 9 operations on `https://example.com` (the SERP operation searches for "coffee machines"; Get Structured Data fetches `https://www.youtube.com/watch?v=dQw4w9WgXcQ`), plus one Get Structured Data request on `https://example.com/` that must come back as the server's 400 with a message containing `Unsupported URL`, proving the node has no client-side site filter. Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query, Get Structured Data must return `parse_status` `ok`, `request_parameters.provider` `youtube` and a non-empty `data.title`, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
+`scripts/smoke.ts` sends one live API request for each of the 10 operations on `https://example.com` (the SERP operation searches for "coffee machines"; Search Locations looks up `austin`; Get Structured Data fetches `https://www.youtube.com/watch?v=dQw4w9WgXcQ`), a second SERP request with Location `Austin, TX` and Pages `2`, plus one Get Structured Data request on `https://example.com/` that must come back as the server's 400 with a message containing `Unsupported URL`, proving the node has no client-side site filter. Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query (and, for the Austin request, `search_parameters.location_used` containing `Austin`), Search Locations a non-empty list whose first `canonical_name` contains `Austin`, Get Structured Data must return `parse_status` `ok`, `request_parameters.provider` `youtube` and a non-empty `data.title`, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
 
 ```bash
 WEBSCRAPING_AI_API_KEY=your-key npm run smoke
 ```
 
-It uses real credits: about 46 per run (page operations run with `js: false` and the `datacenter` proxy, so HTML/Text/Selected/Selected Multiple cost 1 each, AI Question/AI Fields 6 each, and the SERP and YouTube structured-data calls 15 each; the unsupported-URL call is free). The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
+It uses real credits; see the script header. The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
 
 ## Resources
 

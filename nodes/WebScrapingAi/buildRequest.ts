@@ -24,8 +24,18 @@ const OPERATION_ENDPOINT: Record<string, string> = {
 	selectedMultiple: '/selected-multiple',
 	account: '/account',
 	serp: '/serp',
+	serpLocations: '/serp/locations',
 	data: '/data',
 };
+
+// Search Options that must be whole numbers of 1 or more. The UI enforces
+// minValue 1, but expressions bypass it. Upper bounds are the server's (a free 400).
+const SERP_INTEGER_OPTIONS: Record<string, string> = {
+	page: 'Page',
+	pages: 'Pages',
+	radius: 'Radius',
+};
+const SERP_COORDINATE_OPTIONS: Record<string, string> = { lat: 'Latitude', lon: 'Longitude' };
 
 // Extra Parameters can't carry these: api_key comes from the credential, and
 // url is the operation's own field.
@@ -97,15 +107,50 @@ export function buildRequest(
 		}
 		queryParams.q = q;
 		const serpOptions = (getParam('serpOptions', {}) as Record<string, unknown>) ?? {};
-		for (const key of ['engine', 'gl', 'hl', 'page']) {
+		// Location, lat/lon and uule exclusivity, and radius needing one of them,
+		// are checked by the server (a free 400), not here.
+		for (const key of [
+			'engine',
+			'gl',
+			'hl',
+			'page',
+			'pages',
+			'location',
+			'uule',
+			'lat',
+			'lon',
+			'radius',
+		]) {
 			const value = serpOptions[key];
+			// Only options the user added are present, so an unset Latitude is
+			// absent here, never 0 (a valid latitude).
+			if (key in SERP_COORDINATE_OPTIONS) {
+				if (value === undefined) continue;
+				queryParams[key] = formatCoordinate(
+					parseCoordinate(node, SERP_COORDINATE_OPTIONS[key], value),
+				);
+				continue;
+			}
+			// location/uule go as-is.
 			if (value === '' || value === undefined || value === null) continue;
-			// The UI enforces minValue 1, but expressions bypass it, and the API
-			// silently serves (and bills) page 1 for an invalid page.
-			if (key === 'page' && !(Number.isSafeInteger(value) && (value as number) >= 1)) {
-				throw new NodeOperationError(node, 'Page must be a whole number of 1 or more');
+			if (key in SERP_INTEGER_OPTIONS && !(Number.isSafeInteger(value) && (value as number) >= 1)) {
+				throw new NodeOperationError(
+					node,
+					`${SERP_INTEGER_OPTIONS[key]} must be a whole number of 1 or more`,
+				);
 			}
 			queryParams[key] = value as IDataObject[keyof IDataObject];
+		}
+	} else if (operation === 'serpLocations') {
+		// Free lookup of names for Search (SERP)'s Location option.
+		const q = getParam('q', '');
+		if (typeof q === 'string' && q.trim()) queryParams.q = q.trim();
+		const limit = getParam('limit', '');
+		if (limit !== '' && limit !== undefined && limit !== null) {
+			if (!(Number.isSafeInteger(limit) && (limit as number) >= 1)) {
+				throw new NodeOperationError(node, 'Limit must be a whole number of 1 or more');
+			}
+			queryParams.limit = limit as number;
 		}
 	} else if (operation === 'data') {
 		// None of the scraping additionalOptions apply. The URL is deliberately not
@@ -185,6 +230,41 @@ export function buildRequest(
 		returnFullResponse: true,
 		json: false,
 	};
+}
+
+const COORDINATE_STRING = /^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$/;
+
+/**
+ * Latitude/Longitude: a finite number, or a decimal string from an expression
+ * (Sheets, CSV). No validateType here: n8n would turn a blank cell ('') into 0,
+ * a valid coordinate, and silently search (and bill) the wrong place. So a
+ * blank, null or anything else that isn't a plain decimal is an error.
+ */
+function parseCoordinate(node: INode, label: string, value: unknown): number {
+	let n = NaN;
+	if (typeof value === 'number') n = value;
+	else if (typeof value === 'string' && COORDINATE_STRING.test(value)) n = Number(value);
+	if (!Number.isFinite(n)) {
+		throw new NodeOperationError(
+			node,
+			`${label} must be a number (leave the option out when there is no value)`,
+		);
+	}
+	return n;
+}
+
+/**
+ * Plain decimal for lat/lon: the API accepts only `-?digits[.digits]`, and
+ * String(1e-7) is "1e-7". At most 7 fraction digits (about 1 cm), trailing
+ * zeros and a trailing "." trimmed: 30.2672 -> "30.2672", 1e-7 -> "0.0000001",
+ * 1e-9 -> "0", 48 -> "48", -0 -> "0".
+ */
+export function formatCoordinate(value: number): string {
+	// toFixed falls back to exponent notation from 1e21; far outside any
+	// valid coordinate, so the server's range check still answers it.
+	const fixed = Math.abs(value) < 1e21 ? value.toFixed(7) : BigInt(Math.trunc(value)).toString();
+	const trimmed = fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
+	return trimmed === '-0' ? '0' : trimmed;
 }
 
 function parseJsonParam(node: INode, raw: string, label: string): unknown {

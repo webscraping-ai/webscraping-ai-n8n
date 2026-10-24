@@ -1,14 +1,17 @@
 /**
  * Hand-run smoke test against the live API. Not part of the test suite and
  * not shipped (package.json `files` is just `dist`, and tsconfig.json only
- * compiles nodes/ and credentials/). Costs ~46 credits per full sweep: page
+ * compiles nodes/ and credentials/). Costs ~76 credits per full sweep: page
  * operations run with js=false on the datacenter proxy, so html/text/selected/
  * selectedMultiple are 1 credit each (4), aiQuestion/aiFields 6 each (12),
- * and the SERP and YouTube /data calls a flat 15 each. Account and the
+ * the YouTube /data call 15, and SERP 15 per results page returned (the plain
+ * call 1 page, the Austin call 2). Account, Search Locations and the
  * unsupported-URL /data call (a 400) are free.
  *
  * Results are checked, not just status codes: serp needs non-empty
- * organic_results and search_parameters.q matching the query, data needs
+ * organic_results and search_parameters.q matching the query (the Austin call
+ * also search_parameters.location_used containing Austin), serpLocations a
+ * non-empty list whose first canonical_name contains Austin, data needs
  * parse_status ok, provider youtube and a non-empty data.title, data on
  * https://example.com/ must be the server's 400 (proving there's no
  * client-side site filter), selectedMultiple
@@ -128,6 +131,8 @@ const cases: Array<[string, string, Record<string, unknown>, number?]> = [
 		{ url: target, selectors: '["h1", "p"]', additionalOptions: cheap },
 	],
 	['serp', 'serp', { q: serpQuery, serpOptions: {} }],
+	['serp:location', 'serp', { q: serpQuery, serpOptions: { location: 'Austin, TX', pages: 2 } }],
+	['serpLocations', 'serpLocations', { q: 'austin', limit: 3 }],
 	[
 		'data',
 		'data',
@@ -151,19 +156,32 @@ function redact(text: string, apiKey: string): string {
 }
 
 /** Return a problem description if a 2xx body is the wrong shape, else undefined. */
-function checkBody(operation: string, body: string): string | undefined {
+function checkBody(label: string, operation: string, body: string): string | undefined {
 	if (body.trim().length === 0) return 'empty body';
 	switch (operation) {
 		case 'serp': {
 			const r = JSON.parse(body) as {
 				organic_results?: unknown[];
-				search_parameters?: { q?: unknown };
+				search_parameters?: { q?: unknown; location_used?: unknown };
 			};
 			if (!Array.isArray(r.organic_results) || r.organic_results.length === 0) {
 				return 'organic_results is empty';
 			}
 			if (r.search_parameters?.q !== serpQuery) {
 				return `search_parameters.q is ${JSON.stringify(r.search_parameters?.q)}, expected ${JSON.stringify(serpQuery)}`;
+			}
+			const used = r.search_parameters?.location_used;
+			if (label === 'serp:location' && !(typeof used === 'string' && used.includes('Austin'))) {
+				return `search_parameters.location_used is ${JSON.stringify(used)}, expected Austin`;
+			}
+			return undefined;
+		}
+		case 'serpLocations': {
+			const r = JSON.parse(body) as Array<{ canonical_name?: unknown }>;
+			if (!Array.isArray(r) || r.length === 0) return 'expected a non-empty JSON array';
+			const name = r[0]?.canonical_name;
+			if (!(typeof name === 'string' && name.includes('Austin'))) {
+				return `first canonical_name is ${JSON.stringify(name)}, expected Austin`;
 			}
 			return undefined;
 		}
@@ -248,7 +266,7 @@ async function main(): Promise<number> {
 					problem = 'message does not contain "Unsupported URL"';
 				}
 			} else {
-				problem = response.ok ? checkBody(operation, body) : `HTTP ${response.status}`;
+				problem = response.ok ? checkBody(label, operation, body) : `HTTP ${response.status}`;
 			}
 			if (!problem) {
 				console.log(redact(`  ok   ${name}  ${preview(body)}`, apiKey));

@@ -1,6 +1,7 @@
-import { INode } from 'n8n-workflow';
+import { INode, INodeProperties, validateFieldType } from 'n8n-workflow';
 
-import { buildRequest, GetParam } from '../buildRequest';
+import { buildRequest, formatCoordinate, GetParam } from '../buildRequest';
+import { WebScrapingAi } from '../WebScrapingAi.node';
 
 const fakeNode = {
 	id: 'test',
@@ -34,6 +35,7 @@ describe('buildRequest', () => {
 			['selectedMultiple', '/selected-multiple'],
 			['account', '/account'],
 			['serp', '/serp'],
+			['serpLocations', '/serp/locations'],
 			['data', '/data'],
 		])('%s maps to %s', (operation, endpoint) => {
 			const inputs: Record<string, unknown> = {
@@ -63,6 +65,7 @@ describe('buildRequest', () => {
 			'selectedMultiple',
 			'account',
 			'serp',
+			'serpLocations',
 			'data',
 		])('%s sends from_n8n=true', (operation) => {
 			const inputs: Record<string, unknown> = {
@@ -390,6 +393,235 @@ describe('buildRequest', () => {
 		test.each([undefined, '', '   '])('rejects empty query (%p)', (q) => {
 			const inputs = q === undefined ? {} : { q };
 			expect(() => buildRequest(fakeNode, 'serp', getParamFrom(inputs))).toThrow(/Query is required/);
+		});
+
+		test('maps location, pages and radius', () => {
+			const req = buildRequest(
+				fakeNode,
+				'serp',
+				getParamFrom({
+					q: 'coffee machines',
+					serpOptions: { location: 'Austin, TX', pages: 2, radius: 500 },
+				}),
+			);
+			expect(req.qs).toEqual({
+				q: 'coffee machines',
+				location: 'Austin, TX',
+				pages: 2,
+				radius: 500,
+				from_n8n: true,
+			});
+		});
+
+		test('sends location and uule as typed (not trimmed)', () => {
+			const req = buildRequest(
+				fakeNode,
+				'serp',
+				getParamFrom({ q: 'coffee', serpOptions: { location: ' Москва ', uule: 'w+CAIQICI' } }),
+			);
+			expect(req.qs).toMatchObject({ location: ' Москва ', uule: 'w+CAIQICI' });
+		});
+
+		test('sends lat/lon as plain decimal strings', () => {
+			const req = buildRequest(
+				fakeNode,
+				'serp',
+				getParamFrom({ q: 'coffee', serpOptions: { lat: 30.2672, lon: -97.7431 } }),
+			);
+			expect(req.qs).toMatchObject({ lat: '30.2672', lon: '-97.7431' });
+		});
+
+		test('sends a latitude of 0, but nothing for an option that was not added', () => {
+			const withZero = buildRequest(
+				fakeNode,
+				'serp',
+				getParamFrom({ q: 'coffee', serpOptions: { lat: 0, lon: 1e-7 } }),
+			);
+			expect(withZero.qs).toMatchObject({ lat: '0', lon: '0.0000001' });
+
+			const unset = buildRequest(fakeNode, 'serp', getParamFrom({ q: 'coffee', serpOptions: {} }));
+			expect(unset.qs).not.toHaveProperty('lat');
+			expect(unset.qs).not.toHaveProperty('lon');
+		});
+
+		test.each([0, -1, 1.5, NaN, '2'])('rejects invalid pages %p', (pages) => {
+			expect(() =>
+				buildRequest(fakeNode, 'serp', getParamFrom({ q: 'coffee', serpOptions: { pages } })),
+			).toThrow('Pages must be a whole number of 1 or more');
+		});
+
+		test.each([0, -5, 2.5, Infinity])('rejects invalid radius %p', (radius) => {
+			expect(() =>
+				buildRequest(fakeNode, 'serp', getParamFrom({ q: 'coffee', serpOptions: { radius } })),
+			).toThrow('Radius must be a whole number of 1 or more');
+		});
+
+		test.each([
+			['lat', 'Latitude', NaN],
+			['lat', 'Latitude', Infinity],
+			['lon', 'Longitude', -Infinity],
+			['lat', 'Latitude', ''],
+			['lat', 'Latitude', '   '],
+			['lon', 'Longitude', null],
+			['lat', 'Latitude', 'north'],
+			['lat', 'Latitude', '1e5'],
+			['lon', 'Longitude', '30,1'],
+			['lon', 'Longitude', true],
+		])('rejects %s %p', (key, label, value) => {
+			expect(() =>
+				buildRequest(
+					fakeNode,
+					'serp',
+					getParamFrom({ q: 'coffee', serpOptions: { [key]: value } }),
+				),
+			).toThrow(`${label} must be a number (leave the option out when there is no value)`);
+		});
+
+		test.each([
+			['30.2672', '30.2672'],
+			[' -97.7431 ', '-97.7431'],
+			['+5', '5'],
+			['.5', '0.5'],
+			['48.', '48'],
+			['0', '0'],
+		])('accepts the expression string %p for lat/lon', (value, wire) => {
+			const req = buildRequest(
+				fakeNode,
+				'serp',
+				getParamFrom({ q: 'coffee', serpOptions: { lat: value, lon: value } }),
+			);
+			expect(req.qs).toMatchObject({ lat: wire, lon: wire });
+		});
+
+		test('leaves location/lat/lon/radius combinations to the server', () => {
+			const req = buildRequest(
+				fakeNode,
+				'serp',
+				getParamFrom({
+					q: 'coffee',
+					serpOptions: { location: 'Austin', uule: 'a+x', lat: 1, radius: 10 },
+				}),
+			);
+			expect(req.qs).toMatchObject({ location: 'Austin', uule: 'a+x', lat: '1', radius: 10 });
+		});
+	});
+
+	describe('numeric fields coerce expression strings', () => {
+		const properties = new WebScrapingAi().description.properties;
+		const serpOptions = properties.find((p) => p.name === 'serpOptions')!
+			.options as INodeProperties[];
+		const option = (name: string) => serpOptions.find((p) => p.name === name)!;
+		const limitField = properties.find(
+			(p) => p.name === 'limit' && p.displayOptions?.show?.operation?.includes('serpLocations'),
+		)!;
+
+		// n8n validates (and coerces) each field with validateType before the node
+		// sees it; mirror that with the same n8n-workflow helper.
+		const coerce = (field: INodeProperties, value: unknown) => {
+			expect(field.validateType).toBe('number');
+			const result = validateFieldType(field.name, value, field.validateType!);
+			if (!result.valid) throw new Error(result.errorMessage);
+			return result.newValue;
+		};
+
+		test('Latitude/Longitude have no validateType (a blank cell must not become 0)', () => {
+			expect(option('lat').validateType).toBeUndefined();
+			expect(option('lon').validateType).toBeUndefined();
+		});
+
+		test('Search Options strings from Sheets/CSV become numbers on the wire', () => {
+			const raw = { page: '2', pages: '3', radius: '500' };
+			const coerced = Object.fromEntries(
+				Object.entries(raw).map(([k, v]) => [k, coerce(option(k), v)]),
+			);
+			const req = buildRequest(
+				fakeNode,
+				'serp',
+				getParamFrom({ q: 'coffee', serpOptions: { ...coerced, lat: '30.2672', lon: '-97.7431' } }),
+			);
+			expect(req.qs).toMatchObject({
+				lat: '30.2672',
+				lon: '-97.7431',
+				page: 2,
+				pages: 3,
+				radius: 500,
+			});
+		});
+
+		test('Search Locations limit string becomes a number', () => {
+			const req = buildRequest(
+				fakeNode,
+				'serpLocations',
+				getParamFrom({ limit: coerce(limitField, '3') }),
+			);
+			expect(req.qs).toEqual({ limit: 3, from_n8n: true });
+		});
+
+		test('a non-numeric string is still rejected by n8n', () => {
+			expect(validateFieldType('page', 'two', 'number').valid).toBe(false);
+		});
+	});
+
+	describe('formatCoordinate', () => {
+		test.each([
+			[30.2672, '30.2672'],
+			[-97.7431, '-97.7431'],
+			[48, '48'],
+			[-180, '-180'],
+			[1e-7, '0.0000001'],
+			[-1e-7, '-0.0000001'],
+			[1e-9, '0'],
+			[-1e-9, '0'],
+			[0, '0'],
+			[-0, '0'],
+			[1.00000004, '1'],
+			[12.345678951, '12.345679'],
+			[1e21, '1000000000000000000000'],
+		])('%p -> %p', (value, wire) => {
+			const out = formatCoordinate(value);
+			expect(out).toBe(wire);
+			expect(out).toMatch(/^-?\d+(\.\d+)?$/);
+		});
+	});
+
+	describe('serpLocations', () => {
+		test('sends nothing but from_n8n without a query or limit', () => {
+			const req = buildRequest(fakeNode, 'serpLocations', getParamFrom({}));
+			expect(req.url).toBe('https://api.webscraping.ai/serp/locations');
+			expect(req.qs).toEqual({ from_n8n: true });
+		});
+
+		test('sends a trimmed q and the limit', () => {
+			const req = buildRequest(
+				fakeNode,
+				'serpLocations',
+				getParamFrom({ q: ' austin\n', limit: 3 }),
+			);
+			expect(req.qs).toEqual({ q: 'austin', limit: 3, from_n8n: true });
+		});
+
+		test('drops a blank q', () => {
+			const req = buildRequest(fakeNode, 'serpLocations', getParamFrom({ q: '   ', limit: 10 }));
+			expect(req.qs).toEqual({ limit: 10, from_n8n: true });
+		});
+
+		test.each([0, -1, 2.5, NaN, '3'])('rejects invalid limit %p', (limit) => {
+			expect(() =>
+				buildRequest(fakeNode, 'serpLocations', getParamFrom({ limit })),
+			).toThrow('Limit must be a whole number of 1 or more');
+		});
+
+		test('ignores serp and scraping options', () => {
+			const req = buildRequest(
+				fakeNode,
+				'serpLocations',
+				getParamFrom({
+					q: 'austin',
+					serpOptions: { location: 'Austin' },
+					additionalOptions: { js: true },
+				}),
+			);
+			expect(req.qs).toEqual({ q: 'austin', from_n8n: true });
 		});
 	});
 

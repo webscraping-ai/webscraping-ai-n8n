@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-10-24
+- **Search (SERP)** gains Location, Latitude, Longitude, UULE, Radius (Meters) and Pages options. Every search runs from one fixed location (Location, Latitude and Longitude, or UULE; otherwise the capital of the Country), so repeats and later pages stay consistent, and Country now defaults to the location's country. Pages fetches up to 5 consecutive pages as one de-duplicated list (`position` counts through it, each result gets `page`), billed per results page returned (see https://webscraping.ai/docs#serp). Pages and Radius must be whole numbers of 1 or more. Latitude/Longitude must be a number or a plain decimal string from an expression (e.g. `"30.2672"` from a sheet); a blank or non-numeric value is an error rather than a search from 0, so leave the option out when there is no value. Latitude/Longitude go out as plain decimals with at most 7 fraction digits (`0.0000001`, never `1e-7`). Combinations and ranges are checked by the API (a 400 that is not charged). Page, Pages, Radius and Search Locations' Limit accept numeric strings from expressions (e.g. `"2"`), which n8n converts to numbers.
+- New **Search Locations** operation calling `/serp/locations`: optional Query (part of an English location name, e.g. `austin`) and Limit (1–10). Returns one item per location (`id`, `name`, `canonical_name`, `country_code`, `target_type`, `reach`, `gps` as `[longitude, latitude]`); pass `canonical_name` or `id` as Search (SERP)'s Location. Free, no credits used.
 - Docs: stop stating credit prices (they're set server-side and change); link to https://webscraping.ai/docs pricing instead.
+- Dev smoke script: one Search (SERP) call with Location `Austin, TX` and Pages 2 (checks `search_parameters.location_used` contains `Austin` and non-empty `organic_results`) and one Search Locations call for `austin` (checks the first `canonical_name` contains `Austin`).
 
 ## 1.2.1 — 2026-09-26
 - Dev dependencies updated for open Dependabot alerts (`js-yaml`, `brace-expansion`, `browserslist`, `@babel/core`, and the `form-data` that `n8n-workflow` pins). No node or credential changes. The dev copy of `n8n-workflow` is now pinned to 1.120.14: newer versions pull in `isolated-vm`, a native module that needs Node 24 to build.

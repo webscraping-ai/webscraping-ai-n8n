@@ -97,6 +97,13 @@ export class WebScrapingAi implements INodeType {
 						description:
 							'Get parsed search engine results (organic results, related searches, pagination) for a query',
 					},
+					{
+						name: 'Search Locations',
+						value: 'serpLocations',
+						action: 'Look up search locations',
+						description:
+							'Look up names for the Location option of Search (SERP). Free, no credits used.',
+					},
 				],
 				default: 'html',
 			},
@@ -244,7 +251,7 @@ export class WebScrapingAi implements INodeType {
 						type: 'string',
 						default: 'us',
 						description:
-							'Two-letter country code for geolocation of the search (Google gl parameter)',
+							'Two-letter country code for the search, e.g. us, gb, de. Defaults to the country of location, lat/lon or uule, otherwise us.',
 					},
 					{
 						displayName: 'Engine',
@@ -262,16 +269,120 @@ export class WebScrapingAi implements INodeType {
 						description: 'Two-letter language code for the results (Google hl parameter)',
 					},
 					{
+						displayName: 'Latitude',
+						name: 'lat',
+						type: 'number',
+						typeOptions: {
+							minValue: -90,
+							maxValue: 90,
+							numberPrecision: 7,
+						},
+						default: 0,
+						description:
+							'Latitude of the search origin in decimal degrees, from -90 to 90. Requires Longitude; cannot be combined with Location or UULE.',
+					},
+					{
+						displayName: 'Location',
+						name: 'location',
+						type: 'string',
+						default: '',
+						placeholder: 'e.g. Austin, TX',
+						description:
+							'Where the search runs from: a location name such as Austin,Texas,United States or Austin, TX, or an ID from the Search Locations operation. Large cities also match local names, e.g. Москва. An unknown name returns an error and is not charged. Cannot be combined with UULE, Latitude or Longitude.',
+					},
+					{
+						displayName: 'Longitude',
+						name: 'lon',
+						type: 'number',
+						typeOptions: {
+							minValue: -180,
+							maxValue: 180,
+							numberPrecision: 7,
+						},
+						default: 0,
+						description:
+							'Longitude of the search origin in decimal degrees, from -180 to 180. Requires Latitude; cannot be combined with Location or UULE.',
+					},
+					{
 						displayName: 'Page',
 						name: 'page',
 						type: 'number',
+						// Expressions (Sheets, CSV) often yield numeric strings; n8n coerces them.
+						validateType: 'number',
 						typeOptions: {
 							minValue: 1,
 						},
 						default: 1,
 						description: 'Results page number (10 results per page)',
 					},
+					{
+						displayName: 'Pages',
+						name: 'pages',
+						type: 'number',
+						validateType: 'number',
+						typeOptions: {
+							minValue: 1,
+						},
+						default: 1,
+						description:
+							'Number of consecutive results pages to fetch in one call, starting at Page, from 1 to 5. Duplicates across pages are removed, position counts through the combined list and each result gets a page field. Billed per results page returned.',
+					},
+					{
+						displayName: 'Radius (Meters)',
+						name: 'radius',
+						type: 'number',
+						validateType: 'number',
+						typeOptions: {
+							minValue: 1,
+						},
+						default: 1000,
+						description: 'Radius in meters around Location or Latitude/Longitude, from 1 to 1000',
+					},
+					{
+						displayName: 'UULE',
+						name: 'uule',
+						type: 'string',
+						default: '',
+						description:
+							'Google-encoded location (w+CAIQICI… or a+…). Cannot be combined with Location, Latitude or Longitude.',
+					},
 				],
+			},
+			// Search Locations (/serp/locations)
+			{
+				displayName: 'Query',
+				name: 'q',
+				type: 'string',
+				default: '',
+				placeholder: 'e.g. austin',
+				description:
+					'Part of a location name in English, e.g. austin. Without it, the most populous locations are returned.',
+				displayOptions: {
+					show: {
+						operation: ['serpLocations'],
+					},
+				},
+			},
+			{
+				displayName: 'Limit',
+				name: 'limit',
+				type: 'number',
+				validateType: 'number',
+				// The API returns at most 10 locations and answers a larger limit with a 400,
+				// so the usual Limit default of 50 doesn't apply here.
+				typeOptions: {
+					minValue: 1,
+					// eslint-disable-next-line n8n-nodes-base/node-param-type-options-max-value-present
+					maxValue: 10,
+				},
+				// eslint-disable-next-line n8n-nodes-base/node-param-default-wrong-for-limit
+				default: 10,
+				description: 'Max number of results to return',
+				displayOptions: {
+					show: {
+						operation: ['serpLocations'],
+					},
+				},
 			},
 			// AI Question specific field
 			{
@@ -550,7 +661,14 @@ export class WebScrapingAi implements INodeType {
 					try {
 						const jsonData =
 							typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
-						returnData.push({ json: jsonData, pairedItem: { item: i } });
+						if (operation === 'serpLocations' && Array.isArray(jsonData)) {
+							// One output item per location, ready for the next node.
+							for (const location of jsonData) {
+								returnData.push({ json: location, pairedItem: { item: i } });
+							}
+						} else {
+							returnData.push({ json: jsonData, pairedItem: { item: i } });
+						}
 					} catch (parseError) {
 						returnData.push({ json: { raw: response.body }, pairedItem: { item: i } });
 					}
