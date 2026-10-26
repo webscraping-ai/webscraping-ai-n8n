@@ -154,8 +154,8 @@ export function buildRequest(
 		}
 	} else if (operation === 'data') {
 		// None of the scraping additionalOptions apply. The URL is deliberately not
-		// checked against a site list: supported sites grow on the server, whose
-		// free 400 is the source of truth for "unsupported".
+		// checked client-side: /data accepts any public page, and the server
+		// decides what it can parse.
 		const rawUrl = getParam('url', '');
 		if (rawUrl !== undefined && rawUrl !== null && typeof rawUrl !== 'string') {
 			throw new NodeOperationError(node, 'URL must be a string');

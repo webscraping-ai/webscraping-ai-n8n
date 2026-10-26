@@ -1,20 +1,25 @@
 /**
  * Hand-run smoke test against the live API. Not part of the test suite and
  * not shipped (package.json `files` is just `dist`, and tsconfig.json only
- * compiles nodes/ and credentials/). Costs ~76 credits per full sweep: page
- * operations run with js=false on the datacenter proxy, so html/text/selected/
- * selectedMultiple are 1 credit each (4), aiQuestion/aiFields 6 each (12),
- * the YouTube /data call 15, and SERP 15 per results page returned (the plain
- * call 1 page, the Austin call 2). Account, Search Locations and the
- * unsupported-URL /data call (a 400) are free.
+ * compiles nodes/ and credentials/). Uses real credits (see
+ * https://webscraping.ai/docs for pricing): page operations run with js=false
+ * on the datacenter proxy to keep the cost down, and SERP is billed per
+ * results page returned (the plain call 1 page, the Austin call 2). Account
+ * and Search Locations are free; the any-site /data call on
+ * https://example.com/ is not charged when learning its structure outlasts
+ * the request (503), none is found (422) or extracting the data or loading
+ * the page runs out of time (a 500 timeout), and charged if it returns data.
  *
  * Results are checked, not just status codes: serp needs non-empty
  * organic_results and search_parameters.q matching the query (the Austin call
  * also search_parameters.location_used containing Austin), serpLocations a
  * non-empty list whose first canonical_name contains Austin, data needs
- * parse_status ok, provider youtube and a non-empty data.title, data on
- * https://example.com/ must be the server's 400 (proving there's no
- * client-side site filter), selectedMultiple
+ * parse_status ok, provider youtube and a non-empty data.title (a page on a
+ * site with a dedicated parser), data on https://example.com/ (any site) must
+ * be a success envelope (request_parameters present), a 503 with error_code
+ * structure_processing, a 422 with error_code structure_unavailable, or a 500
+ * with error_code timeout,
+ * selectedMultiple
  * needs at least one non-empty inner array, aiFields a non-empty object, the
  * rest a non-empty body. Printed lines never contain the API key.
  *
@@ -89,8 +94,9 @@ const dataUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 
 // Parameter values as n8n would hand them to getNodeParameter: what the user
 // typed plus the node's UI defaults for the other visible fields.
-// [label, operation, params, expected HTTP status (200 unless given)]
-const cases: Array<[string, string, Record<string, unknown>, number?]> = [
+// [label, operation, params, check ('anySite' accepts 200/503/422/500, see
+// checkAnySite; default: HTTP 2xx + checkBody)]
+const cases: Array<[string, string, Record<string, unknown>, 'anySite'?]> = [
 	[
 		'aiQuestion',
 		'aiQuestion',
@@ -138,7 +144,7 @@ const cases: Array<[string, string, Record<string, unknown>, number?]> = [
 		'data',
 		{ url: dataUrl, country: '', transcript: false, transcript_language: '', extraParams: {} },
 	],
-	['data:unsupported', 'data', { url: `${target}/` }, 400],
+	['data:any-site', 'data', { url: `${target}/` }, 'anySite'],
 	['account', 'account', {}],
 ];
 
@@ -217,6 +223,43 @@ function checkBody(label: string, operation: string, body: string): string | und
 	}
 }
 
+/**
+ * /data on a page without a dedicated parser: accept a success envelope
+ * (request_parameters present), a 503 when learning the page structure outlasts
+ * the request (error_code structure_processing), a 422 when there's no structured data
+ * (error_code structure_unavailable), or a 500 when extracting the data or loading the
+ * page runs out of time (error_code timeout). Anything else is a problem.
+ */
+function checkAnySite(status: number, body: string): string | undefined {
+	let r: { request_parameters?: unknown; error_code?: unknown };
+	try {
+		r = JSON.parse(body) as typeof r;
+	} catch {
+		return `HTTP ${status} with a non-JSON body`;
+	}
+	if (status === 200) {
+		return r.request_parameters && typeof r.request_parameters === 'object'
+			? undefined
+			: 'request_parameters is missing';
+	}
+	if (status === 503) {
+		return r.error_code === 'structure_processing'
+			? undefined
+			: `HTTP 503 with error_code ${JSON.stringify(r.error_code)}, expected "structure_processing"`;
+	}
+	if (status === 422) {
+		return r.error_code === 'structure_unavailable'
+			? undefined
+			: `HTTP 422 with error_code ${JSON.stringify(r.error_code)}, expected "structure_unavailable"`;
+	}
+	if (status === 500) {
+		return r.error_code === 'timeout'
+			? undefined
+			: `HTTP 500 with error_code ${JSON.stringify(r.error_code)}, expected "timeout"`;
+	}
+	return `HTTP ${status}, expected 200, 503, 422 or 500`;
+}
+
 async function main(): Promise<number> {
 	const apiKey = process.env.WEBSCRAPING_AI_API_KEY;
 	if (!apiKey) {
@@ -241,7 +284,7 @@ async function main(): Promise<number> {
 	}
 
 	let failures = 0;
-	for (const [label, operation, params, expectedStatus = 200] of cases) {
+	for (const [label, operation, params, check] of cases) {
 		const name = label.padEnd(18);
 		try {
 			const getParam: GetParam = (paramName, fallback) =>
@@ -258,13 +301,8 @@ async function main(): Promise<number> {
 			});
 			const body = await response.text();
 			let problem: string | undefined;
-			if (expectedStatus !== 200) {
-				if (response.status !== expectedStatus) {
-					problem = `HTTP ${response.status}, expected ${expectedStatus}`;
-				} else if (!body.includes('Unsupported URL')) {
-					// Proves the 400 came from the server's /data check, not something else.
-					problem = 'message does not contain "Unsupported URL"';
-				}
+			if (check === 'anySite') {
+				problem = checkAnySite(response.status, body);
 			} else {
 				problem = response.ok ? checkBody(label, operation, body) : `HTTP ${response.status}`;
 			}

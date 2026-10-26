@@ -80,9 +80,8 @@ export class WebScrapingAi implements INodeType {
 					{
 						name: 'Get Structured Data',
 						value: 'data',
-						action: 'Get structured data for a page on a supported site',
-						description:
-							'Get structured JSON for a page on a supported site (e.g. YouTube, TikTok, X, LinkedIn, Instagram, Reddit) from its normal URL',
+						action: 'Get structured data for any public web page',
+						description: 'Get structured JSON for any public web page from its normal URL',
 					},
 					{
 						name: 'Get Text',
@@ -128,9 +127,10 @@ export class WebScrapingAi implements INodeType {
 				type: 'string',
 				required: true,
 				default: '',
-				placeholder: 'e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+				placeholder:
+					'e.g. https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html',
 				description:
-					'Normal URL of a public page on a supported site, e.g. a YouTube video, TikTok profile, X post, LinkedIn company, Instagram reel or Reddit thread. More sites are added on the server over time; an unsupported URL or page type returns a 400 that is not charged, whose message lists what is supported. Use AI Extract Fields for other sites. Priced per site, see https://webscraping.ai/docs#data.',
+					'Normal URL of any public web page. The first request for a new kind of page on a site also learns its structure and can take up to about 45 seconds; if learning takes longer, the API returns a 503 (structure_processing, not charged) and the node fails, so run it again after about 30 seconds. If no structured data can be found, a 422 (structure_unavailable, not charged) is returned: use AI Extract Fields instead. See https://webscraping.ai/docs#data for pricing.',
 				displayOptions: {
 					show: {
 						operation: ['data'],
@@ -156,7 +156,7 @@ export class WebScrapingAi implements INodeType {
 				type: 'boolean',
 				default: false,
 				description:
-					"Whether to also fetch the video's transcript into data.transcript (YouTube videos only). It's null when no matching captions are available. If the transcript fetch itself fails, the whole request fails with a 500 and is not charged.",
+					"Whether to also fetch the video's transcript into data.transcript (video pages on sites with a dedicated parser only). It's null when no matching captions are available. If the transcript fetch itself fails, the whole request fails with a 500 and is not charged.",
 				displayOptions: {
 					show: {
 						operation: ['data'],
@@ -170,7 +170,7 @@ export class WebScrapingAi implements INodeType {
 				default: '',
 				placeholder: 'e.g. en',
 				description:
-					'Caption language to pick, e.g. en or de (YouTube only, with Transcript on). Without it, English is preferred, then the first available track. If the video has no captions in that language, data.transcript is null.',
+					'Caption language to pick, e.g. en or de (with Transcript on). Without it, English is preferred, then the first available track. If the video has no captions in that language, data.transcript is null.',
 				displayOptions: {
 					show: {
 						operation: ['data'],
@@ -187,7 +187,7 @@ export class WebScrapingAi implements INodeType {
 				default: {},
 				placeholder: 'Add Parameter',
 				description:
-					'Additional site-specific query parameters sent to the API as-is, for parameters added after this node version. Cannot override the page URL, the API key or the fields above, and each name can be used once.',
+					'Additional query parameters sent to the API as-is, e.g. timeout, js_timeout, wait_for or device for pages without a dedicated parser, or parameters added after this node version. There is no js or proxy option: /data renders pages with JavaScript where the site needs it and always uses proxy=auto. Cannot override the page URL, the API key or the fields above, and each name can be used once.',
 				displayOptions: {
 					show: {
 						operation: ['data'],

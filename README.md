@@ -18,7 +18,7 @@ WebScraping.AI provides AI-powered web scraping with Chromium JavaScript renderi
 - **Get Account Info**: Retrieve account quota and usage information
 - **Search (SERP)**: Get parsed Google search results for a query, from a chosen location, one or several pages at a time
 - **Search Locations**: Look up location names for Search (SERP) (free)
-- **Get Structured Data**: Get structured JSON for a page on a supported site (e.g. YouTube, TikTok, X, LinkedIn, Instagram, Reddit) from its normal URL
+- **Get Structured Data**: Get structured JSON for any public web page from its normal URL
 
 ## Installation
 
@@ -136,16 +136,34 @@ Look up names for Search (SERP)'s Location option. Free, no credits used.
 Returns one item per location, most populous first, with `id`, `google_id`, `google_parent_id`, `name`, `canonical_name`, `country_code`, `target_type` (e.g. `City`, `State`, `Country`), `reach` (approximate population) and `gps` (`[longitude, latitude]`). Pass `canonical_name` (or `id`) as Location.
 
 ### Get Structured Data
-Get structured JSON for a public page on a supported site from its normal URL: for example a YouTube video, channel or playlist, a TikTok video or profile, an X post or profile, a LinkedIn company, job or profile, an Instagram post, reel or profile, or a Reddit post, subreddit or user. The site (`provider`) and page kind (`type`) are detected from the URL. These are examples: more sites are added on the server over time and work with this node without an update, so the node never checks the URL itself. An unsupported URL or page type returns a 400 that is not charged. Its message lists what is supported. For other sites, use AI Extract Fields. Priced per site (see [pricing](https://webscraping.ai/docs#data)), including pages that parse empty (`parse_failed`) or no longer exist (`not_found`); unsupported URLs and failed fetches are not charged. The scraping Advanced Options below don't apply.
+Get structured JSON for any public web page from its normal URL. Some popular sites have dedicated parsers with fixed fields; for other sites, an AI model learns the structure of each kind of page once, and pages of that kind then return data straight away for every user. The node never checks the URL itself. Priced per request (see [pricing](https://webscraping.ai/docs#data)), including pages that parse empty (`parse_failed`) or no longer exist (`not_found`). Failed fetches are not charged. The scraping Advanced Options below don't apply.
+
+- **First request for a new kind of page**: on a site without a dedicated parser, the first request for a new kind of page also learns the page's structure, so it can take up to about 45 seconds.
+- **503 `structure_processing`**: learning the structure took longer than the request, or another request is already learning that site. The API returns HTTP 503 with `{"message": "...", "error_code": "structure_processing", "retry_after": 30}`. It is not charged, and a retry after `retry_after` seconds can return data (if learning failed meanwhile, it may learn again or return the 422 below). Like other API errors, it fails the node, or with "Continue on Fail" outputs `{ "error": "We're still processing the data structure of this site. Retry in about 30 seconds; …" }`. n8n's "Retry On Fail" waits at most 5 seconds between tries, which is too short; instead, enable "Continue on Fail", route items that have an `error` field through a Wait node of about 30 seconds, and run Get Structured Data again (or use an error workflow).
+- **422 `structure_unavailable`**: no structured data could be found on the page (e.g. an empty page or a login wall). It is not charged; use AI Extract Fields instead. Like other API errors, it fails the node, or with "Continue on Fail" outputs `{ "error": "<message>" }`.
+- **Redirects**: redirects within the same site (http→https, `www`, trailing slash) are followed; a redirect to another site returns HTTP 500 with `error_code` `target_redirect` (the target is in the message), not charged.
+- **429 `rate_limited`**: too many new kinds of pages started in an hour.
 
 **Parameters:**
-- URL (required): The page's normal URL, e.g. `https://www.youtube.com/watch?v=dQw4w9WgXcQ`. Surrounding whitespace is trimmed; otherwise it is sent unchanged.
+- URL (required): The page's normal URL, e.g. `https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html`. Surrounding whitespace is trimmed; otherwise it is sent unchanged.
 - Country: Two-letter country code of the proxy used to fetch the page, `us` by default.
-- Transcript: YouTube videos only. Also fetch the video's transcript into `data.transcript`. It's null when no matching captions are available. If the transcript fetch itself fails, the whole request fails with a 500 and is not charged.
-- Transcript Language: Caption language to pick, e.g. `en` or `de`. Without it, English is preferred, then the first available track. If the video has no captions in that language, `data.transcript` is null.
-- Extra Parameters: Name/value pairs sent to the API as-is, for site-specific parameters added after this node version. `url`, `api_key`, a name that repeats one of the fields above, or a name used in two rows is an error.
+- Transcript: Video pages on sites with a dedicated parser only. Also fetch the video's transcript into `data.transcript`. It's null when no matching captions are available. If the transcript fetch itself fails, the whole request fails with a 500 and is not charged.
+- Transcript Language: With Transcript on. Caption language to pick, e.g. `en` or `de`. Without it, English is preferred, then the first available track. If the video has no captions in that language, `data.transcript` is null.
+- Extra Parameters: Name/value pairs sent to the API as-is, for parameters added after this node version (e.g. `timeout`, `js_timeout`, `wait_for` or `device`, which the API accepts for pages without a dedicated parser). There are no `js` or `proxy` options: `/data` renders pages with JavaScript where the site needs it and always uses `proxy=auto`. `url`, `api_key`, a name that repeats one of the fields above, or a name used in two rows is an error.
 
-Returns JSON with `request_parameters` (`url`, `provider`, `type`), `parse_status` (`ok`, `parse_failed` or `not_found`) and `data`, whose snake_case fields depend on `provider` and `type` (`data` can be `null`).
+Returns JSON with `request_parameters` (`url`, `provider`: the site the page belongs to, e.g. `toscrape.com`; `type`: the kind of page, e.g. `product`), `parse_status` (`ok`, `parse_failed` or `not_found`) and `data`, whose snake_case fields depend on `provider` and `type` (`data` can be `null`). For example:
+
+```json
+{
+  "request_parameters": {
+    "url": "https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html",
+    "provider": "toscrape.com",
+    "type": "product"
+  },
+  "parse_status": "ok",
+  "data": { "title": "A Light in the Attic", "price": 51.77, "currency": "GBP" }
+}
+```
 
 ## Advanced Options
 
@@ -208,18 +226,20 @@ All URL-based scraping operations support these advanced options:
 3. Under Search Options set Location to `Austin, TX` (or the `canonical_name` from step 1) and Pages to `2`
 4. `organic_results` holds both pages as one list; each result's `page` says where it came from
 
-### Get YouTube Video Details and Transcript
+### Get Structured Data for a Product Page
 
 1. Use "Get Structured Data" operation
-2. Enter the video URL (e.g., `https://www.youtube.com/watch?v=dQw4w9WgXcQ`)
-3. Turn on Transcript to also get `data.transcript`
-4. Read `data.title`, `data.views`, `data.channel` and so on from the output
+2. Enter the page URL (e.g., `https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html`)
+3. If the node fails with a 503 `structure_processing` (or, with "Continue on Fail", outputs an `error`), wait about 30 seconds and run it again
+4. Read `data.title`, `data.price`, `data.currency` and so on from the output
 
 ## Error Handling
 
 The node handles the following error scenarios:
 
 - **400**: Parameter validation errors - Check your input parameters
+- **422**: Get Structured Data found no structured data on the page (`structure_unavailable`, not charged) - Use AI Extract Fields instead
+- **503**: Get Structured Data is still learning the page's structure (`structure_processing`, not charged) - Wait about 30 seconds and run it again
 - **402**: Billing/quota exceeded - Check your account balance
 - **403**: Invalid API key - Verify your credentials
 - **429**: Rate limiting - Reduce request frequency
@@ -230,13 +250,13 @@ Enable "Continue on Fail" in the node settings to handle errors gracefully in yo
 
 ## Live smoke test (development)
 
-`scripts/smoke.ts` sends one live API request for each of the 10 operations on `https://example.com` (the SERP operation searches for "coffee machines"; Search Locations looks up `austin`; Get Structured Data fetches `https://www.youtube.com/watch?v=dQw4w9WgXcQ`), a second SERP request with Location `Austin, TX` and Pages `2`, plus one Get Structured Data request on `https://example.com/` that must come back as the server's 400 with a message containing `Unsupported URL`, proving the node has no client-side site filter. Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query (and, for the Austin request, `search_parameters.location_used` containing `Austin`), Search Locations a non-empty list whose first `canonical_name` contains `Austin`, Get Structured Data must return `parse_status` `ok`, `request_parameters.provider` `youtube` and a non-empty `data.title`, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
+`scripts/smoke.ts` sends one live API request for each of the 10 operations on `https://example.com` (the SERP operation searches for "coffee machines"; Search Locations looks up `austin`; Get Structured Data fetches a page on a site with a dedicated parser), a second SERP request with Location `Austin, TX` and Pages `2`, plus one Get Structured Data request on `https://example.com/` (a site without a dedicated parser) that passes if it returns a success envelope with `request_parameters`, a 503 with `error_code` `structure_processing` (learning the structure outlasted the request), or a 422 with `error_code` `structure_unavailable`. Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query (and, for the Austin request, `search_parameters.location_used` containing `Austin`), Search Locations a non-empty list whose first `canonical_name` contains `Austin`, the dedicated-parser Get Structured Data request must return `parse_status` `ok`, the expected `request_parameters.provider` and a non-empty `data.title`, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
 
 ```bash
 WEBSCRAPING_AI_API_KEY=your-key npm run smoke
 ```
 
-It uses real credits; see the script header. The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
+It uses real credits (see [pricing](https://webscraping.ai/docs); page operations run with `js: false` and the `datacenter` proxy to keep the cost down, SERP is billed per results page returned, Search Locations is free, and the `https://example.com/` structured-data call is not charged when it returns 503 or 422). The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
 
 ## Resources
 
