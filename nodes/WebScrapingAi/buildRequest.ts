@@ -36,6 +36,7 @@ const SERP_INTEGER_OPTIONS: Record<string, string> = {
 	radius: 'Radius',
 };
 const SERP_COORDINATE_OPTIONS: Record<string, string> = { lat: 'Latitude', lon: 'Longitude' };
+const SERP_LOCATIONS_MAX_LIMIT = 10;
 
 // Extra Parameters can't carry these: api_key comes from the credential, and
 // url is the operation's own field.
@@ -150,7 +151,8 @@ export function buildRequest(
 			if (!(Number.isSafeInteger(limit) && (limit as number) >= 1)) {
 				throw new NodeOperationError(node, 'Limit must be a whole number of 1 or more');
 			}
-			queryParams.limit = limit as number;
+			// The field defaults to 50 (n8n convention); the API caps at 10 and 400s above.
+			queryParams.limit = Math.min(limit as number, SERP_LOCATIONS_MAX_LIMIT);
 		}
 	} else if (operation === 'data') {
 		// None of the scraping additionalOptions apply. The URL is deliberately not
@@ -270,7 +272,7 @@ export function formatCoordinate(value: number): string {
 function parseJsonParam(node: INode, raw: string, label: string): unknown {
 	try {
 		return JSON.parse(raw);
-	} catch (e) {
+	} catch {
 		throw new NodeOperationError(node, `Invalid JSON in ${label} parameter`);
 	}
 }

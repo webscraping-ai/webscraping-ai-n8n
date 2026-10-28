@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-webscraping-ai.webScrapingAi",
+	"nodeVersion": "2.0",
+	"codexVersion": "1.0",
+	"categories": ["Development", "Data & Storage"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/webscraping-ai/webscraping-ai-n8n?tab=readme-ov-file#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/webscraping-ai/webscraping-ai-n8n?tab=readme-ov-file"
+			}
+		]
+	}
+}

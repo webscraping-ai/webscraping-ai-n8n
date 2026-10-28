@@ -1,7 +1,7 @@
 import { INode, INodeProperties, validateFieldType } from 'n8n-workflow';
 
-import { buildRequest, formatCoordinate, GetParam } from '../buildRequest';
-import { WebScrapingAi } from '../WebScrapingAi.node';
+import { buildRequest, formatCoordinate, GetParam } from '../nodes/WebScrapingAi/buildRequest';
+import { WebScrapingAi } from '../nodes/WebScrapingAi/WebScrapingAi.node';
 
 const fakeNode = {
 	id: 'test',
@@ -605,6 +605,15 @@ describe('buildRequest', () => {
 			expect(req.qs).toEqual({ limit: 10, from_n8n: true });
 		});
 
+		test.each([
+			[10, 10],
+			[11, 10],
+			[50, 10],
+		])('caps limit %p at the API maximum (%p)', (limit, sent) => {
+			const req = buildRequest(fakeNode, 'serpLocations', getParamFrom({ limit }));
+			expect(req.qs).toEqual({ limit: sent, from_n8n: true });
+		});
+
 		test.each([0, -1, 2.5, NaN, '3'])('rejects invalid limit %p', (limit) => {
 			expect(() =>
 				buildRequest(fakeNode, 'serpLocations', getParamFrom({ limit })),
@@ -827,6 +836,65 @@ describe('buildRequest', () => {
 				}),
 			);
 			expect((req.qs as Record<string, unknown>).device).toBe(device);
+		});
+	});
+
+	describe('node description versions', () => {
+		const description = new WebScrapingAi().description;
+		const properties = description.properties;
+		const operationParams = properties.filter((p) => p.name === 'operation');
+		const valuesOf = (p: INodeProperties) =>
+			(p.options as Array<{ value: string }>).map((o) => o.value);
+		const v1Operation = operationParams.find((p) =>
+			p.displayOptions?.show?.['@version']?.includes(1),
+		)!;
+		const v2Operations = operationParams.filter((p) =>
+			p.displayOptions?.show?.['@version']?.includes(2),
+		);
+		const resource = properties.find((p) => p.name === 'resource')!;
+
+		test('node is version 1 and 2', () => {
+			expect(description.version).toEqual([1, 2]);
+		});
+
+		test('resource selector is shown only in v2', () => {
+			expect(resource.displayOptions?.show?.['@version']).toEqual([2]);
+		});
+
+		test('v2 has one operation list per resource', () => {
+			const resources = valuesOf(resource).sort();
+			const covered = v2Operations
+				.map((p) => p.displayOptions?.show?.resource as string[])
+				.flat()
+				.sort();
+			expect(covered).toEqual(resources);
+		});
+
+		test('v2 operation values are unique and match v1 and buildRequest', () => {
+			// Every other field and buildRequest key on the operation value alone.
+			const v2Values = v2Operations.flatMap(valuesOf);
+			expect(new Set(v2Values).size).toBe(v2Values.length);
+			expect([...v2Values].sort()).toEqual([...valuesOf(v1Operation)].sort());
+			for (const operation of v2Values) {
+				expect(() => buildRequest(fakeNode, operation, getParamFrom({}))).not.toThrow(
+					/Unknown operation/,
+				);
+			}
+		});
+
+		test('each v2 default operation belongs to its resource', () => {
+			for (const p of v2Operations) {
+				expect(valuesOf(p)).toContain(p.default);
+			}
+		});
+
+		test('fields only reference known operations', () => {
+			const known = new Set(valuesOf(v1Operation));
+			for (const p of properties) {
+				for (const operation of (p.displayOptions?.show?.operation as string[]) ?? []) {
+					expect(known).toContain(operation);
+				}
+			}
 		});
 	});
 

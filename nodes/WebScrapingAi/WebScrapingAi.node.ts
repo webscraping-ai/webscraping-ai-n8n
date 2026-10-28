@@ -15,11 +15,13 @@ import { buildRequest, GetParam } from './buildRequest';
 export class WebScrapingAi implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'WebScraping.AI',
-		// eslint-disable-next-line n8n-nodes-base/node-class-description-name-miscased
 		name: 'webScrapingAi',
 		icon: { light: 'file:webscrapingai.svg', dark: 'file:webscrapingai.dark.svg' },
 		group: ['transform'],
-		version: 1,
+		// v2 groups the operations under resources. Operation values stay unique
+		// across resources, so every field below and buildRequest key on the
+		// operation alone and work unchanged for v1 workflows.
+		version: [1, 2],
 		usableAsTool: true,
 		subtitle: '={{$parameter["operation"]}}',
 		description: 'AI-powered web scraping with JavaScript rendering and proxies',
@@ -36,10 +38,172 @@ export class WebScrapingAi implements INodeType {
 		],
 		properties: [
 			{
+				displayName: 'Resource',
+				name: 'resource',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{ name: 'Account', value: 'account' },
+					{ name: 'AI', value: 'ai' },
+					{ name: 'Search', value: 'search' },
+					{ name: 'Structured Data', value: 'structuredData' },
+					{ name: 'Web Page', value: 'webPage' },
+				],
+				default: 'webPage',
+				displayOptions: {
+					show: {
+						'@version': [2],
+					},
+				},
+			},
+			{
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
 				noDataExpression: true,
+				options: [
+					{
+						name: 'Get HTML',
+						value: 'html',
+						action: 'Get full HTML of a web page',
+						description: 'Get the full HTML content of a web page',
+					},
+					{
+						name: 'Get Multiple Selections',
+						value: 'selectedMultiple',
+						action: 'Get HTML of multiple selections',
+						description: 'Get HTML content of multiple page areas by CSS selectors',
+					},
+					{
+						name: 'Get Selected HTML',
+						value: 'selected',
+						action: 'Get HTML of selected elements',
+						description: 'Get HTML content of selected page areas by CSS selector',
+					},
+					{
+						name: 'Get Text',
+						value: 'text',
+						action: 'Get text content of a web page',
+						description: 'Get the visible text content of a web page',
+					},
+				],
+				default: 'html',
+				displayOptions: {
+					show: {
+						'@version': [2],
+						resource: ['webPage'],
+					},
+				},
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Ask Question',
+						value: 'aiQuestion',
+						action: 'Ask a question about a web page',
+						description: 'Get an answer to a question about a web page using AI',
+					},
+					{
+						name: 'Extract Fields',
+						value: 'aiFields',
+						action: 'Extract fields from a web page',
+						description: 'Extract structured data fields from a web page using AI',
+					},
+				],
+				default: 'aiQuestion',
+				displayOptions: {
+					show: {
+						'@version': [2],
+						resource: ['ai'],
+					},
+				},
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Get Locations',
+						value: 'serpLocations',
+						action: 'Get search locations',
+						description:
+							'Look up names for the Location option of Search Google. Free, no credits used.',
+					},
+					{
+						name: 'Search Google',
+						value: 'serp',
+						action: 'Search google',
+						description:
+							'Get parsed search engine results (organic results, related searches, pagination) for a query',
+					},
+				],
+				default: 'serp',
+				displayOptions: {
+					show: {
+						'@version': [2],
+						resource: ['search'],
+					},
+				},
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Get',
+						value: 'data',
+						action: 'Get structured data for a web page',
+						description: 'Get structured JSON for any public web page from its normal URL',
+					},
+				],
+				default: 'data',
+				displayOptions: {
+					show: {
+						'@version': [2],
+						resource: ['structuredData'],
+					},
+				},
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				options: [
+					{
+						name: 'Get',
+						value: 'account',
+						action: 'Get account information',
+						description: 'Get your API account quota and usage information',
+					},
+				],
+				default: 'account',
+				displayOptions: {
+					show: {
+						'@version': [2],
+						resource: ['account'],
+					},
+				},
+			},
+			// v1: one flat operation list, no resources
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						'@version': [1],
+					},
+				},
 				options: [
 					{
 						name: 'AI Extract Fields',
@@ -288,7 +452,7 @@ export class WebScrapingAi implements INodeType {
 						default: '',
 						placeholder: 'e.g. Austin, TX',
 						description:
-							'Where the search runs from: a location name such as Austin,Texas,United States or Austin, TX, or an ID from the Search Locations operation. Large cities also match local names, e.g. Москва. An unknown name returns an error and is not charged. Cannot be combined with UULE, Latitude or Longitude.',
+							'Where the search runs from: a location name such as Austin,Texas,United States or Austin, TX, or an ID from Get Locations (Search Locations in node version 1). Large cities also match local names, e.g. Москва. An unknown name returns an error and is not charged. Cannot be combined with UULE, Latitude or Longitude.',
 					},
 					{
 						displayName: 'Longitude',
@@ -368,16 +532,14 @@ export class WebScrapingAi implements INodeType {
 				name: 'limit',
 				type: 'number',
 				validateType: 'number',
-				// The API returns at most 10 locations and answers a larger limit with a 400,
-				// so the usual Limit default of 50 doesn't apply here.
 				typeOptions: {
 					minValue: 1,
-					// eslint-disable-next-line n8n-nodes-base/node-param-type-options-max-value-present
-					maxValue: 10,
 				},
-				// eslint-disable-next-line n8n-nodes-base/node-param-default-wrong-for-limit
-				default: 10,
+				// n8n's lint requires 50 for a Limit. The API returns at most 10 locations
+				// and answers a larger limit with a 400, so buildRequest caps it at 10.
+				default: 50,
 				description: 'Max number of results to return',
+				hint: 'At most 10 locations are returned',
 				displayOptions: {
 					show: {
 						operation: ['serpLocations'],
@@ -431,6 +593,7 @@ export class WebScrapingAi implements INodeType {
 				displayName: 'CSS Selectors',
 				name: 'selectors',
 				type: 'json',
+				required: true,
 				default: '["h1", ".price"]',
 				description: 'Array of CSS selectors. Example: ["h1", ".price", "#description"].',
 				displayOptions: {
@@ -669,7 +832,7 @@ export class WebScrapingAi implements INodeType {
 						} else {
 							returnData.push({ json: jsonData, pairedItem: { item: i } });
 						}
-					} catch (parseError) {
+					} catch {
 						returnData.push({ json: { raw: response.body }, pairedItem: { item: i } });
 					}
 				} else if (
@@ -697,7 +860,7 @@ export class WebScrapingAi implements INodeType {
 								(apiError.message as string) ||
 								(apiError.detail as string) ||
 								JSON.stringify(apiError);
-						} catch (e) {
+						} catch {
 							errorMessage = String(apiBody);
 						}
 					}

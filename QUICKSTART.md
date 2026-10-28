@@ -16,15 +16,13 @@ npm install n8n-nodes-webscraping-ai
 ### Option 2: Local Development
 
 ```bash
-cd /Users/drakula2k/projects/webscraping-ai-n8n
+git clone https://github.com/webscraping-ai/webscraping-ai-n8n.git
+cd webscraping-ai-n8n
 npm install
-npm run build
-npm link
-cd ~/.n8n
-npm link n8n-nodes-webscraping-ai
+npm run dev
 ```
 
-Restart n8n after installation.
+`npm run dev` (Node.js 24) starts a local n8n with the node installed and rebuilds it on every change.
 
 ## Setup Credentials
 
@@ -39,7 +37,7 @@ Restart n8n after installation.
 ### Example 1: Get HTML from a Website
 
 1. Add **WebScraping.AI** node to your workflow
-2. Select **Get HTML** operation
+2. Select resource **Web Page**, operation **Get HTML**
 3. Enter URL: `https://example.com`
 4. Connect credentials
 5. Execute
@@ -47,7 +45,7 @@ Restart n8n after installation.
 ### Example 2: Extract Product Data with AI
 
 1. Add **WebScraping.AI** node
-2. Select **AI Extract Fields** operation
+2. Select resource **AI**, operation **Extract Fields**
 3. Enter product URL
 4. Set Fields to Extract:
 ```json
@@ -63,7 +61,7 @@ Restart n8n after installation.
 ### Example 3: Ask AI About a Webpage
 
 1. Add **WebScraping.AI** node
-2. Select **AI Question** operation
+2. Select resource **AI**, operation **Ask Question**
 3. Enter URL: `https://news.ycombinator.com`
 4. Enter Question: `What are the top 3 trending topics?`
 5. Execute
@@ -71,7 +69,7 @@ Restart n8n after installation.
 ### Example 4: Extract Specific Elements
 
 1. Add **WebScraping.AI** node
-2. Select **Get Selected HTML** operation
+2. Select resource **Web Page**, operation **Get Selected HTML**
 3. Enter URL
 4. Enter CSS Selector: `.article-title`
 5. Execute
@@ -79,7 +77,7 @@ Restart n8n after installation.
 ### Example 5: Monitor Content Changes
 
 1. Add **Schedule Trigger** node (every hour)
-2. Add **WebScraping.AI** node with Get Text operation
+2. Add **WebScraping.AI** node with resource Web Page, operation Get Text
 3. Add **Compare** node to check if content changed
 4. Add **Send Email** node to notify on changes
 
@@ -171,7 +169,7 @@ In **Additional Options**:
 ## Rate Limits
 
 - Check your plan limits at https://webscraping.ai/pricing
-- Use Get Account Info operation to monitor remaining credits
+- Use resource Account, operation Get to monitor remaining credits
 - Add delays between requests in loops to avoid rate limiting
 
 ## Support
@@ -182,7 +180,7 @@ In **Additional Options**:
 
 ## Next Steps
 
-1. Explore all 7 operations
+1. Explore all 10 operations
 2. Combine with other n8n nodes (databases, APIs, notifications)
 3. Build production workflows
 4. Monitor quota and adjust plan as needed

@@ -1,3 +1,4 @@
+/* eslint-disable no-console, @n8n/community-nodes/no-restricted-globals -- dev-only script, never shipped or scanned */
 /**
  * Hand-run smoke test against the live API. Not part of the test suite and
  * not shipped (package.json `files` is just `dist`, and tsconfig.json only
@@ -129,7 +130,7 @@ const cases: Array<[string, string, Record<string, unknown>, 'anySite'?]> = [
 	[
 		'selected',
 		'selected',
-		{ url: target, selector: 'h1', format: 'json', additionalOptions: cheap },
+		{ url: target, selector: 'p', format: 'json', additionalOptions: cheap },
 	],
 	[
 		'selectedMultiple',

@@ -1,6 +1,6 @@
 import { IExecuteFunctions, INode } from 'n8n-workflow';
 
-import { WebScrapingAi } from '../WebScrapingAi.node';
+import { WebScrapingAi } from '../nodes/WebScrapingAi/WebScrapingAi.node';
 
 const node = {
 	id: 'test',
@@ -11,7 +11,7 @@ const node = {
 	parameters: {},
 } as INode;
 
-const API_KEY = 'secret-api-key-123';
+const FAKE_KEY_IN_URL = 'leak-probe-123';
 
 /** Minimal IExecuteFunctions for one input item and the `data` operation. */
 function context(
@@ -63,7 +63,7 @@ describe('execute: data', () => {
 			'Unsupported URL for /data. Supported sites: youtube, tiktok, twitter, linkedin, instagram, reddit. For other sites, use /ai/fields for AI-powered extraction.';
 		const error = Object.assign(
 			new Error(
-				`Request failed with status code 400 (https://api.webscraping.ai/data?api_key=${API_KEY})`,
+				`Request failed with status code 400 (https://api.webscraping.ai/data?api_key=${FAKE_KEY_IN_URL})`,
 			),
 			{ response: { status: 400, body: JSON.stringify({ message }) } },
 		);
@@ -73,19 +73,19 @@ describe('execute: data', () => {
 		);
 
 		expect(items).toEqual([{ json: { error: message }, pairedItem: { item: 0 } }]);
-		expect(JSON.stringify(items)).not.toContain(API_KEY);
+		expect(JSON.stringify(items)).not.toContain(FAKE_KEY_IN_URL);
 	});
 
 	test('redacts the API key from a transport error that quotes the request URL', async () => {
 		const error = new Error(
-			`getaddrinfo ENOTFOUND api.webscraping.ai (https://api.webscraping.ai/data?url=https%3A%2F%2Fexample.com%2F&from_n8n=true&api_key=${API_KEY})`,
+			`getaddrinfo ENOTFOUND api.webscraping.ai (https://api.webscraping.ai/data?url=https%3A%2F%2Fexample.com%2F&from_n8n=true&api_key=${FAKE_KEY_IN_URL})`,
 		);
 		const http = jest.fn().mockRejectedValue(error);
 		const [items] = await new WebScrapingAi().execute.call(
 			context({ operation: 'data', url: 'https://example.com/' }, http),
 		);
 
-		expect(JSON.stringify(items)).not.toContain(API_KEY);
+		expect(JSON.stringify(items)).not.toContain(FAKE_KEY_IN_URL);
 		expect(JSON.stringify(items)).toContain('api_key=[REDACTED]');
 	});
 

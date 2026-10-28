@@ -9,16 +9,22 @@ WebScraping.AI provides AI-powered web scraping with Chromium JavaScript renderi
 
 ## Features
 
-- **AI Question**: Ask questions about web page content using LLM
-- **AI Extract Fields**: Extract structured data fields using AI
-- **Get HTML**: Retrieve full HTML content of web pages
-- **Get Text**: Extract visible text content
-- **Get Selected HTML**: Extract HTML from specific CSS selectors
-- **Get Multiple Selections**: Extract HTML from multiple CSS selectors
-- **Get Account Info**: Retrieve account quota and usage information
-- **Search (SERP)**: Get parsed Google search results for a query, from a chosen location, one or several pages at a time
-- **Search Locations**: Look up location names for Search (SERP) (free)
-- **Get Structured Data**: Get structured JSON for any public web page from its normal URL
+Node version 2 groups the operations under resources (version 1 workflows keep working unchanged; see [Node versions](#node-versions)):
+
+| Resource | Operation | Version 1 name |
+| --- | --- | --- |
+| Web Page | **Get HTML**: full HTML of a page | Get HTML |
+| Web Page | **Get Text**: visible text content | Get Text |
+| Web Page | **Get Selected HTML**: HTML of the elements matching a CSS selector | Get Selected HTML |
+| Web Page | **Get Multiple Selections**: HTML for several CSS selectors at once | Get Multiple Selections |
+| AI | **Ask Question**: ask an LLM a question about a page | AI Question |
+| AI | **Extract Fields**: extract structured fields from a page with an LLM | AI Extract Fields |
+| Search | **Search Google**: parsed Google results for a query, from a chosen location, one or several pages at a time | Search (SERP) |
+| Search | **Get Locations**: look up location names for Search Google (free) | Search Locations |
+| Structured Data | **Get**: structured JSON for any public web page from its normal URL | Get Structured Data |
+| Account | **Get**: account quota and usage | Get Account Info |
+
+The sections below use the version 1 names.
 
 ## Installation
 
@@ -131,7 +137,7 @@ Look up names for Search (SERP)'s Location option. Free, no credits used.
 
 **Parameters:**
 - Query: Part of a location name in English, e.g. `austin`. Without it, the most populous locations are returned
-- Limit: Maximum number of locations to return, 1 to 10 (default `10`)
+- Limit: Maximum number of locations to return (default `50`). The API returns at most 10, so a larger Limit is sent as 10
 
 Returns one item per location, most populous first, with `id`, `google_id`, `google_parent_id`, `name`, `canonical_name`, `country_code`, `target_type` (e.g. `City`, `State`, `Country`), `reach` (approximate population) and `gps` (`[longitude, latitude]`). Pass `canonical_name` (or `id`) as Location.
 
@@ -192,7 +198,7 @@ All URL-based scraping operations support these advanced options:
 ### Extract Product Data from E-commerce Site
 
 1. Add WebScraping.AI node to your workflow
-2. Select "AI Extract Fields" operation
+2. Select resource "AI", operation "Extract Fields"
 3. Enter product URL
 4. Set Fields to Extract:
 ```json
@@ -207,31 +213,36 @@ All URL-based scraping operations support these advanced options:
 
 ### Monitor Website Content Changes
 
-1. Use "Get Text" operation with JSON format
+1. Use resource "Web Page", operation "Get Text" with JSON format
 2. Store the result in a database
 3. Schedule the workflow to run periodically
 4. Compare new results with previous ones to detect changes
 
 ### Scrape Google Search Results
 
-1. Use "Search (SERP)" operation
+1. Use resource "Search", operation "Search Google"
 2. Enter the search query (e.g., `coffee machines`)
 3. Optionally set Country, Language, and Page under Search Options
 4. Split out `organic_results` to process each result (`position`, `title`, `link`, `snippet`)
 
 ### Search From a City, Two Pages at Once
 
-1. Optionally use "Search Locations" with Query `austin` and pick the `canonical_name` you want (e.g. `Austin,Texas,United States`)
-2. Use "Search (SERP)" with Query `coffee machines`
+1. Optionally use Search → "Get Locations" with Query `austin` and pick the `canonical_name` you want (e.g. `Austin,Texas,United States`)
+2. Use Search → "Search Google" with Query `coffee machines`
 3. Under Search Options set Location to `Austin, TX` (or the `canonical_name` from step 1) and Pages to `2`
 4. `organic_results` holds both pages as one list; each result's `page` says where it came from
 
 ### Get Structured Data for a Product Page
 
-1. Use "Get Structured Data" operation
+1. Use resource "Structured Data", operation "Get"
 2. Enter the page URL (e.g., `https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html`)
 3. If the node fails with a 503 `structure_processing` (or, with "Continue on Fail", outputs an `error`), wait about 30 seconds and run it again
 4. Read `data.title`, `data.price`, `data.currency` and so on from the output
+
+## Node versions
+
+- **Version 2** (default for new nodes since 1.4.0): a Resource selector (Web Page, AI, Search, Structured Data, Account) with an Operation list per resource. Fields, options and output are the same as in version 1.
+- **Version 1**: one flat Operation list. Workflows created before 1.4.0 stay on version 1 and behave as before. To move one to version 2, add a new WebScraping.AI node and copy the fields over.
 
 ## Error Handling
 
@@ -256,7 +267,21 @@ Enable "Continue on Fail" in the node settings to handle errors gracefully in yo
 WEBSCRAPING_AI_API_KEY=your-key npm run smoke
 ```
 
-It uses real credits (see [pricing](https://webscraping.ai/docs); page operations run with `js: false` and the `datacenter` proxy to keep the cost down, SERP is billed per results page returned, Search Locations is free, and the `https://example.com/` structured-data call is not charged when it returns 503 or 422). The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that lint and the n8n community-package scanner check.
+It uses real credits (see [pricing](https://webscraping.ai/docs); page operations run with `js: false` and the `datacenter` proxy to keep the cost down, SERP is billed per results page returned, Search Locations is free, and the `https://example.com/` structured-data call is not charged when it returns 503 or 422). The script is compiled with `tsc -p tsconfig.smoke.json` into `.smoke/`, which is gitignored. It isn't part of `dist/` or the npm package, and it sits outside the `nodes/` and `credentials/` paths that the n8n community-package scanner checks. `npm run lint` does check it; a header comment allows the `console` and `process.env` a dev script needs.
+
+## Development
+
+Built with n8n's [`@n8n/node-cli`](https://www.npmjs.com/package/@n8n/node-cli) (`n8n-node`). Its dev dependencies need Node.js 24.
+
+```bash
+npm install
+npm run dev      # start n8n locally with this node, rebuilding on change
+npm run lint     # n8n's community-node lint rules (strict mode)
+npm test         # unit tests (test/)
+npm run build    # compile to dist/
+```
+
+Releases are published to npm only from GitHub Actions (`.github/workflows/release.yml`, run when a GitHub Release is published), with npm provenance, as n8n requires for verified community nodes.
 
 ## Resources
 
