@@ -2,7 +2,7 @@
 
 ## Overview
 
-Successfully implemented a complete n8n community node for WebScraping.AI, providing all 7 API operations with comprehensive parameter support and error handling.
+Successfully implemented a complete n8n community node for WebScraping.AI, providing 10 operations over the WebScraping.AI API (originally 7; SERP, Search Locations and Structured Data were added later) with comprehensive parameter support and error handling.
 
 ## Implementation Date
 
@@ -34,7 +34,7 @@ webscraping-ai-n8n/
 
 ## Implemented Features
 
-### 1. Operations (All 7 API Endpoints)
+### 1. Operations (the original 7 API endpoints)
 
 ✅ **AI Extract Fields** - Extract structured data using AI
 - Required: URL, Fields (JSON object with field descriptions)
@@ -185,32 +185,20 @@ Before publishing to npm, test the following scenarios:
 
 ### For Development/Testing
 
-1. Install dependencies:
+Needs Node.js 24 (the `@n8n/node-cli` dev tooling).
+
 ```bash
-cd /Users/drakula2k/projects/webscraping-ai-n8n
+git clone https://github.com/webscraping-ai/webscraping-ai-n8n.git
+cd webscraping-ai-n8n
 npm install
+npm run dev
 ```
 
-2. Build the project:
-```bash
-npm run build
-```
-
-3. Link to local n8n installation:
-```bash
-npm link
-cd ~/.n8n
-npm link n8n-nodes-webscraping-ai
-```
-
-4. Restart n8n and the node should appear in the node palette
+`npm run dev` starts a local n8n with the node installed and rebuilds it on every change.
 
 ### For Production
 
-1. Publish to npm:
-```bash
-npm publish
-```
+1. Publish to npm: bump `version` in package.json, push to master, then create a GitHub Release `vX.Y.Z` (`gh release create vX.Y.Z`). `.github/workflows/release.yml` runs the tests, then `npm run release` (`n8n-node release`: lint, build, `npm publish` with provenance). A bare `npm publish` always fails: `prepublishOnly` runs `n8n-node prerelease`, which refuses unless `RELEASE_MODE` is set.
 
 2. Install in n8n:
 ```bash
