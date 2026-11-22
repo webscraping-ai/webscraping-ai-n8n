@@ -74,13 +74,13 @@ webscraping-ai-n8n/
 - Device (Desktop/Mobile/Tablet)
 
 ✅ **Proxy Settings**
-- Proxy Type (Datacenter/Residential)
-- Country (11 countries supported)
+- Proxy Type (Datacenter/Residential/Stealth/Auto)
+- Country (13 countries supported)
 - Custom Proxy (http://user:pass@host:port format)
 
 ✅ **Request Configuration**
 - Headers (JSON object)
-- Timeout (1-30000ms, default: 10000)
+- Timeout (1-25000ms, default: 10000)
 - Error on 404 (boolean)
 - Error on Redirect (boolean)
 

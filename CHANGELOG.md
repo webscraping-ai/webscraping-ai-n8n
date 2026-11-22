@@ -3,7 +3,7 @@
 ## [Unreleased]
 - Proxy Type gains **Auto**: tries datacenter, then residential, then stealth in one request and bills only the tier that worked (can't be combined with Custom Proxy).
 - Docs: Get Structured Data's Country no longer claims a fixed `us` default (country sites with a dedicated parser, e.g. `uk.indeed.com`, use their own country); its URL help and the README list the retryable, uncharged 500 `timeout`/`ai_unavailable` errors; the README example now shows type `book` and currency `£`.
-- Docs: Timeout's maximum is 25000 ms (larger values are capped), not 30000; the README also gives JavaScript Timeout's maximum (20000), lists all four proxy types and adds HK/TR to the country list.
+- Docs: Timeout's maximum is 25000 ms (larger values are capped), not 30000; the README and IMPLEMENTATION.md also give JavaScript Timeout's maximum (20000), lists all four proxy types and adds HK/TR to the country list.
 - Tests check the proxy, country and device dropdowns list exactly the API's values. Dev smoke script: Get Structured Data on a site without a dedicated parser also accepts a 500 `ai_unavailable`.
 
 ## 1.4.0 — 2026-10-28

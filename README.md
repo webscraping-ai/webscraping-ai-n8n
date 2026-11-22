@@ -184,7 +184,7 @@ All URL-based scraping operations support these advanced options:
 - **Device**: Desktop, Mobile, or Tablet emulation
 
 ### Proxy Settings
-- **Proxy Type**: Datacenter, Residential, Stealth, or Auto (default: Residential). Auto tries datacenter, then residential, then stealth in one request and bills only the tier that worked; it can't be combined with Custom Proxy
+- **Proxy Type**: Datacenter, Residential, Stealth, or Auto. The option is pre-set to Residential when you add it; without it, the API uses Datacenter. Auto tries datacenter, then residential, then stealth in one request and bills only the tier that worked; it can't be combined with Custom Proxy
 - **Country**: Select proxy country (US, GB, DE, IT, FR, CA, ES, RU, JP, KR, IN, HK, TR)
 - **Custom Proxy**: Use your own proxy in "http://user:password@host:port" format
 
