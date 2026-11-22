@@ -254,9 +254,9 @@ function checkAnySite(status: number, body: string): string | undefined {
 			: `HTTP 422 with error_code ${JSON.stringify(r.error_code)}, expected "structure_unavailable"`;
 	}
 	if (status === 500) {
-		return r.error_code === 'timeout'
+		return r.error_code === 'timeout' || r.error_code === 'ai_unavailable'
 			? undefined
-			: `HTTP 500 with error_code ${JSON.stringify(r.error_code)}, expected "timeout"`;
+			: `HTTP 500 with error_code ${JSON.stringify(r.error_code)}, expected "timeout" or "ai_unavailable"`;
 	}
 	return `HTTP ${status}, expected 200, 503, 422 or 500`;
 }

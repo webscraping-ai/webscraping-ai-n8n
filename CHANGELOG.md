@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+- Proxy Type gains **Auto**: tries datacenter, then residential, then stealth in one request and bills only the tier that worked (can't be combined with Custom Proxy).
+- Docs: Get Structured Data's Country no longer claims a fixed `us` default (country sites with a dedicated parser, e.g. `uk.indeed.com`, use their own country); its URL help and the README list the retryable, uncharged 500 `timeout`/`ai_unavailable` errors; the README example now shows type `book` and currency `£`.
+- Docs: Timeout's maximum is 25000 ms (larger values are capped), not 30000; the README also gives JavaScript Timeout's maximum (20000), lists all four proxy types and adds HK/TR to the country list.
+- Tests check the proxy, country and device dropdowns list exactly the API's values. Dev smoke script: Get Structured Data on a site without a dedicated parser also accepts a 500 `ai_unavailable`.
+
 ## 1.4.0 — 2026-10-28
 - **Node version 2** groups the 10 operations under resources: Web Page (Get HTML, Get Text, Get Selected HTML, Get Multiple Selections), AI (Ask Question, Extract Fields), Search (Search Google, Get Locations), Structured Data (Get) and Account (Get). New nodes get version 2. Existing workflows stay on version 1 and behave exactly as before. Fields, options and output are the same in both versions.
 - Search Locations' Limit now defaults to 50, per n8n's convention for Limit fields, and a value above 10 is sent as 10, the API's maximum (it used to return a 400). Workflows that left Limit at its old default of 10 still get up to 10 locations.

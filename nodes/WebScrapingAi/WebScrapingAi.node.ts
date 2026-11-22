@@ -294,7 +294,7 @@ export class WebScrapingAi implements INodeType {
 				placeholder:
 					'e.g. https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html',
 				description:
-					'Normal URL of any public web page. The first request for a new kind of page on a site also learns its structure and can take up to about 45 seconds; if learning takes longer, the API returns a 503 (structure_processing, not charged) and the node fails, so run it again after about 30 seconds. If no structured data can be found, a 422 (structure_unavailable, not charged) is returned: use AI Extract Fields instead. See https://webscraping.ai/docs#data for pricing.',
+					'Normal URL of any public web page. The first request for a new kind of page on a site also learns its structure and can take up to about 45 seconds; if learning takes longer, the API returns a 503 (structure_processing, not charged) and the node fails, so run it again after about 30 seconds. If no structured data can be found, a 422 (structure_unavailable, not charged) is returned: use AI Extract Fields instead. A 500 with error_code timeout or ai_unavailable (AI model busy) is not charged and can be retried. See https://webscraping.ai/docs#data for pricing.',
 				displayOptions: {
 					show: {
 						operation: ['data'],
@@ -307,7 +307,8 @@ export class WebScrapingAi implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: 'e.g. us',
-				description: 'Two-letter country code of the proxy used to fetch the page, us by default',
+				description:
+					"Two-letter country code of the proxy used to fetch the page, e.g. us, gb, de. Without it, pages on a country site with a dedicated parser (e.g. uk.indeed.com) use that site's country and everything else uses us. Some dedicated parsers use a fixed route and ignore it; their results always follow the URL's site.",
 				displayOptions: {
 					show: {
 						operation: ['data'],
@@ -707,20 +708,22 @@ export class WebScrapingAi implements INodeType {
 						name: 'proxy',
 						type: 'options',
 						options: [
+							{ name: 'Auto', value: 'auto' },
 							{ name: 'Datacenter', value: 'datacenter' },
 							{ name: 'Residential', value: 'residential' },
 							{ name: 'Stealth', value: 'stealth' },
 						],
 						default: 'residential',
 						description:
-							'Type of proxy to use. Use residential for sites that restrict datacenter traffic, or stealth for the most heavily protected sites with advanced anti-bot detection. Residential and stealth requests cost more than datacenter.',
+							"Type of proxy to use. Use residential for sites that restrict datacenter traffic, or stealth for the most heavily protected sites with advanced anti-bot detection. Residential and stealth requests cost more than datacenter. Auto tries datacenter, then residential, then stealth in one request and bills only the tier that worked; it can't be combined with Custom Proxy.",
 					},
 					{
 						displayName: 'Timeout (Ms)',
 						name: 'timeout',
 						type: 'number',
 						default: 10000,
-						description: 'Maximum web page retrieval time in milliseconds (1-30000)',
+						description:
+							'Maximum web page retrieval time in milliseconds (1-25000; larger values are capped at 25000)',
 					},
 					{
 						displayName: 'Wait For Selector',
