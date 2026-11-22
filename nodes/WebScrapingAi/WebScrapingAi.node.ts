@@ -308,7 +308,7 @@ export class WebScrapingAi implements INodeType {
 				default: '',
 				placeholder: 'e.g. us',
 				description:
-					"Two-letter country code of the proxy used to fetch the page, e.g. us, gb, de. Without it, pages on a country site with a dedicated parser (e.g. uk.indeed.com) use that site's country and everything else uses us. Some dedicated parsers use a fixed route and ignore it; their results always follow the URL's site.",
+					"Two-letter country code of the proxy used to fetch the page, e.g. us, gb, de. Without it, Indeed country sites (e.g. uk.indeed.com) use that site's country and everything else uses us. Some dedicated parsers use a fixed route and ignore it; their results always follow the URL's site.",
 				displayOptions: {
 					show: {
 						operation: ['data'],
