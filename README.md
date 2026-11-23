@@ -149,25 +149,26 @@ Get structured JSON for any public web page from its normal URL. Some popular si
 - **422 `structure_unavailable`**: no structured data could be found on the page (e.g. an empty page or a login wall). It is not charged; use AI Extract Fields instead. Like other API errors, it fails the node, or with "Continue on Fail" outputs `{ "error": "<message>" }`.
 - **Redirects**: redirects within the same site (http→https, `www`, trailing slash) are followed; a redirect to another site returns HTTP 500 with `error_code` `target_redirect` (the target is in the message), not charged.
 - **429 `rate_limited`**: too many new kinds of pages started in an hour.
+- **500 `timeout` / `ai_unavailable`**: the request timed out, or the AI model was busy. Not charged; run it again.
 
 **Parameters:**
 - URL (required): The page's normal URL, e.g. `https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html`. Surrounding whitespace is trimmed; otherwise it is sent unchanged.
-- Country: Two-letter country code of the proxy used to fetch the page, `us` by default.
+- Country: Two-letter country code of the proxy used to fetch the page, e.g. `us`, `gb`, `de`. Without it, Indeed country sites (e.g. `uk.indeed.com`) use that site's country and everything else uses `us`. Some dedicated parsers use a fixed route and ignore it; their results always follow the URL's site.
 - Transcript: Video pages on sites with a dedicated parser only. Also fetch the video's transcript into `data.transcript`. It's null when no matching captions are available. If the transcript fetch itself fails, the whole request fails with a 500 and is not charged.
 - Transcript Language: With Transcript on. Caption language to pick, e.g. `en` or `de`. Without it, English is preferred, then the first available track. If the video has no captions in that language, `data.transcript` is null.
 - Extra Parameters: Name/value pairs sent to the API as-is, for parameters added after this node version (e.g. `timeout`, `js_timeout`, `wait_for` or `device`, which the API accepts for pages without a dedicated parser). There are no `js` or `proxy` options: `/data` renders pages with JavaScript where the site needs it and always uses `proxy=auto`. `url`, `api_key`, a name that repeats one of the fields above, or a name used in two rows is an error.
 
-Returns JSON with `request_parameters` (`url`, `provider`: the site the page belongs to, e.g. `toscrape.com`; `type`: the kind of page, e.g. `product`), `parse_status` (`ok`, `parse_failed` or `not_found`) and `data`, whose snake_case fields depend on `provider` and `type` (`data` can be `null`). For example:
+Returns JSON with `request_parameters` (`url`, `provider`: the site the page belongs to, e.g. `toscrape.com`; `type`: the kind of page, e.g. `book`), `parse_status` (`ok`, `parse_failed` or `not_found`) and `data`, whose snake_case fields depend on `provider` and `type` (`data` can be `null`). For example:
 
 ```json
 {
   "request_parameters": {
     "url": "https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html",
     "provider": "toscrape.com",
-    "type": "product"
+    "type": "book"
   },
   "parse_status": "ok",
-  "data": { "title": "A Light in the Attic", "price": 51.77, "currency": "GBP" }
+  "data": { "title": "A Light in the Attic", "price": 51.77, "currency": "£" }
 }
 ```
 
@@ -177,19 +178,19 @@ All URL-based scraping operations support these advanced options:
 
 ### Browser & Rendering
 - **Enable JavaScript**: Execute on-page JavaScript (default: true)
-- **JavaScript Timeout**: Max JS rendering time in ms (default: 2000)
+- **JavaScript Timeout**: Max JS rendering time in ms (default: 2000, max: 20000)
 - **Wait For Selector**: CSS selector to wait for before returning content
 - **Custom JavaScript**: Execute custom JavaScript code on the page
 - **Device**: Desktop, Mobile, or Tablet emulation
 
 ### Proxy Settings
-- **Proxy Type**: Datacenter or Residential
-- **Country**: Select proxy country (US, GB, DE, IT, FR, CA, ES, RU, JP, KR, IN)
+- **Proxy Type**: Datacenter, Residential, Stealth, or Auto. The option is pre-set to Residential when you add it; without it, the API uses Datacenter. Auto tries datacenter, then residential, then stealth in one request and bills only the tier that worked; it can't be combined with Custom Proxy
+- **Country**: Select proxy country (US, GB, DE, IT, FR, CA, ES, RU, JP, KR, IN, HK, TR)
 - **Custom Proxy**: Use your own proxy in "http://user:password@host:port" format
 
 ### Request Configuration
 - **Headers**: Custom HTTP headers as JSON object
-- **Timeout**: Max page retrieval time in ms (default: 10000, max: 30000)
+- **Timeout**: Max page retrieval time in ms (default: 10000, max: 25000; larger values are capped)
 - **Error on 404**: Return error on 404 status
 - **Error on Redirect**: Return error on redirects
 
@@ -261,7 +262,7 @@ Enable "Continue on Fail" in the node settings to handle errors gracefully in yo
 
 ## Live smoke test (development)
 
-`scripts/smoke.ts` sends one live API request for each of the 10 operations on `https://example.com` (the SERP operation searches for "coffee machines"; Search Locations looks up `austin`; Get Structured Data fetches a page on a site with a dedicated parser), a second SERP request with Location `Austin, TX` and Pages `2`, plus one Get Structured Data request on `https://example.com/` (a site without a dedicated parser) that passes if it returns a success envelope with `request_parameters`, a 503 with `error_code` `structure_processing` (learning the structure outlasted the request), or a 422 with `error_code` `structure_unavailable`. Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query (and, for the Austin request, `search_parameters.location_used` containing `Austin`), Search Locations a non-empty list whose first `canonical_name` contains `Austin`, the dedicated-parser Get Structured Data request must return `parse_status` `ok`, the expected `request_parameters.provider` and a non-empty `data.title`, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
+`scripts/smoke.ts` sends one live API request for each of the 10 operations on `https://example.com` (the SERP operation searches for "coffee machines"; Search Locations looks up `austin`; Get Structured Data fetches a page on a site with a dedicated parser), a second SERP request with Location `Austin, TX` and Pages `2`, plus one Get Structured Data request on `https://example.com/` (a site without a dedicated parser) that passes if it returns a success envelope with `request_parameters`, a 503 with `error_code` `structure_processing` (learning the structure outlasted the request), a 422 with `error_code` `structure_unavailable`, or a 500 with `error_code` `timeout` or `ai_unavailable` (both retryable). Each request is built by the node's real `buildRequest` helper. The script then adds `api_key` to the query string, as the credential does, and encodes the query string the way n8n's `httpRequest` helper does with the `arrayFormat: 'repeat'` that `buildRequest` sets: arrays go out as repeated keys (`selectors=h1&selectors=p`; the API ignores bracketed `selectors[0]=` arrays), objects as bracketed keys (`fields[title]=...`, `headers[X-Foo]=...`). It checks results, not just status codes: SERP must return non-empty `organic_results` with `search_parameters.q` matching the query (and, for the Austin request, `search_parameters.location_used` containing `Austin`), Search Locations a non-empty list whose first `canonical_name` contains `Austin`, the dedicated-parser Get Structured Data request must return `parse_status` `ok`, the expected `request_parameters.provider` and a non-empty `data.title`, Selected Multiple must return at least one non-empty inner array (the API answers mis-encoded selectors with `[[]]`), AI Fields a non-empty object, and the rest a non-empty body. It prints `ok`/`FAIL` for each operation (never the API key) and exits non-zero if any operation fails. An optional `WEBSCRAPING_AI_API_URL` overrides the base URL and must include the scheme (`http://` or `https://`).
 
 ```bash
 WEBSCRAPING_AI_API_KEY=your-key npm run smoke

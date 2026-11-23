@@ -787,7 +787,7 @@ describe('buildRequest', () => {
 		// Sourced from public/openapi.yml at the time of writing. If the API
 		// adds new values, this test fails loudly so the node options dropdown
 		// can be updated in lockstep.
-		const PROXY_TYPES = ['datacenter', 'residential', 'stealth'];
+		const PROXY_TYPES = ['datacenter', 'residential', 'stealth', 'auto'];
 		const COUNTRIES = [
 			'us',
 			'gb',
@@ -836,6 +836,21 @@ describe('buildRequest', () => {
 				}),
 			);
 			expect((req.qs as Record<string, unknown>).device).toBe(device);
+		});
+
+		test.each([
+			['proxy', PROXY_TYPES],
+			['country', COUNTRIES],
+			['device', DEVICES],
+		])('%s dropdown lists exactly the API values', (name, expected) => {
+			const additionalOptions = new WebScrapingAi().description.properties.find(
+				(p) => p.name === 'additionalOptions',
+			)!;
+			const option = (additionalOptions.options as INodeProperties[]).find(
+				(o) => o.name === name,
+			)!;
+			const values = (option.options as Array<{ value: string }>).map((o) => o.value);
+			expect([...values].sort()).toEqual([...expected].sort());
 		});
 	});
 
